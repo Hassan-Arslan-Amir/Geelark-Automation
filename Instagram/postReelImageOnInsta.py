@@ -133,6 +133,7 @@ def post_image_on_device(
 def post_images_on_all_devices(
     image_urls:      list,
     caption:         str  = "",
+    profile_ids:     dict = None,    # {mobile: profile_id} — if None, uses all devices
     schedule_at:     int  = None,
     stagger_minutes: int  = 0,
     task_name:       str  = None,
@@ -142,18 +143,13 @@ def post_images_on_all_devices(
     need_share_link: bool = False,
     same_style_url:  str  = None,
 ) -> list:
-    """
-    Posts Reels images on all devices with optional staggered timing.
+    # Use provided devices or fall back to full list
+    devices     = profile_ids if profile_ids else {v: k for k, v in PROFILE_MOBILE_MAP.items()}
+    device_list = [(v, k) for k, v in devices.items()]  # [(profile_id, mobile)]
 
-    image_urls      : List of image URLs from GeeLark storage (max 10)
-    caption         : Instagram caption. Pass "" for no caption.
-    schedule_at     : Unix timestamp. None = post immediately.
-    stagger_minutes : Time gap between each device in minutes (0 = same time)
-    publish_post    : True = post as regular POST, False = post as Reel
-    """
     print(f"\n{'='*55}")
-    print(f"🖼️  Posting Instagram Reels Image on all devices...")
-    print(f"   Devices         : {len(PROFILE_IDS)}")
+    print(f"🖼️  Posting Instagram Reels Image on devices...")
+    print(f"   Devices         : {len(device_list)}")
     print(f"   Images          : {len(image_urls)}")
     print(f"   Publish as      : {'Regular POST' if publish_post else 'Reel'}")
     print(f"   Caption         : {'(none)' if not caption.strip() else caption[:50] + '...'}")
@@ -162,11 +158,7 @@ def post_images_on_all_devices(
 
     results = []
 
-    for i, profile_id in enumerate(PROFILE_IDS, 0):
-        if not profile_id:
-            continue
-
-        mobile = PROFILE_MOBILE_MAP.get(profile_id, "?")
+    for i, (profile_id, mobile) in enumerate(device_list, 0):
 
         # Use fixed time if provided, otherwise use current time + 1 min buffer
         # This ensures the schedule is always in the future when the API call is sent
@@ -176,7 +168,7 @@ def post_images_on_all_devices(
             device_schedule = int(time.time()) + 60 + (i * stagger_minutes * 60)
         readable_time = datetime.fromtimestamp(device_schedule).strftime("%Y-%m-%d %H:%M:%S")
 
-        print(f"\n[{i+1}/{len(PROFILE_IDS)}] Mobile: {mobile} | Profile: {profile_id}")
+        print(f"\n[{i+1}/{len(device_list)}] Mobile: {mobile} | Profile: {profile_id}")
         print(f"   📅 Scheduled at : {readable_time}")
 
         result = post_image_on_device(

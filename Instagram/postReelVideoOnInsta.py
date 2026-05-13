@@ -102,23 +102,24 @@ def post_reel_on_device(
 # ─────────────────────────────────────────
 def post_reels_on_all_devices(
     video_urls:         list,
-    caption:            str = "",
-    schedule_at:        int = None,     # Fixed time for all devices
-    stagger_minutes:    int = 0,        # Gap between each device (0 = same time)
+    caption:            str  = "",
+    profile_ids:        dict = None,    # {mobile: profile_id} — if None, uses all devices
+    schedule_at:        int  = None,    # Fixed time for all devices
+    stagger_minutes:    int  = 0,       # Gap between each device (0 = same time)
 ):
+    # Use provided devices or fall back to full list
+    devices = profile_ids if profile_ids else {v: k for k, v in PROFILE_MOBILE_MAP.items()}
+    device_list = [(v, k) for k, v in devices.items()]  # [(profile_id, mobile)]
+
     print(f"\n{'='*55}")
-    print(f"🎬 Posting Instagram Reels on all devices...")
-    print(f"   Devices         : {len(PROFILE_IDS)}")
+    print(f"🎬 Posting Instagram Reels on devices...")
+    print(f"   Devices         : {len(device_list)}")
     print(f"   Stagger interval: {stagger_minutes} min(s) between devices")
     print(f"{'='*55}")
 
     results = []
 
-    for i, profile_id in enumerate(PROFILE_IDS, 0):
-        if not profile_id:
-            continue
-
-        mobile = PROFILE_MOBILE_MAP.get(profile_id, "?")
+    for i, (profile_id, mobile) in enumerate(device_list, 0):
 
         # Use fixed time if provided, otherwise use current time + 1 min buffer
         # This ensures the schedule is always in the future when the API call is sent
@@ -128,7 +129,7 @@ def post_reels_on_all_devices(
             device_schedule = int(time.time()) + 60 + (i * stagger_minutes * 60)
         readable_time = datetime.fromtimestamp(device_schedule).strftime("%Y-%m-%d %H:%M:%S")
 
-        print(f"\n[{i+1}/{len(PROFILE_IDS)}] Mobile: {mobile} | Profile: {profile_id}")
+        print(f"\n[{i+1}/{len(device_list)}] Mobile: {mobile} | Profile: {profile_id}")
         print(f"   📅 Scheduled at: {readable_time}")
 
         result = post_reel_on_device(
