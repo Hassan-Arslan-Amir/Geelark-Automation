@@ -1,11 +1,16 @@
 import os
 import io
+import sys
 from datetime import datetime
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+
+# Allow importing supabase_logger from the parent directory
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from supabase_logger import get_content_status
 
 # ============================================================
 # CONFIGURATION — Only edit this section
@@ -177,11 +182,22 @@ def main():
         for file in files:
             file_path = os.path.join(folder_download_path, sanitize_filename(file['name']))
 
-            if os.path.exists(file_path):
-                print(f"  ⏭  Skipping (already exists): {file['name']}")
+            status = get_content_status(file_path)
+
+            if status == "posted":
+                print(f"  ⏭  Skipping (already posted): {file['name']}")
                 continue
 
             all_skipped = False
+
+            if status == "not_posted" and os.path.exists(file_path):
+                # File was downloaded before but posting was interrupted — reuse it
+                print(f"  ♻️  Reusing unposted file: {file['name']}")
+                downloaded_file_path = file_path
+                download_happened = True
+                break
+
+            # status == "not_found" or file missing on disk — download it
             success = download_file(service, file['id'], file['name'], folder_download_path)
             if success:
                 downloaded_file_path = file_path
