@@ -1,11 +1,14 @@
 import requests
 import time
 import os
+import sys
 import uuid
 import hashlib
 import json
 from datetime import datetime
 from dotenv import load_dotenv
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import api_post
 
 load_dotenv()
@@ -14,7 +17,7 @@ APP_ID   = os.getenv("GEELARK_APP_ID")
 API_KEY  = os.getenv("GEELARK_API_KEY")
 BASE_URL = "https://openapi.geelark.com/open/v1"
 
-_json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deviceIDs.json")
+_json_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deviceIDs.json")
 with open(_json_path, "r") as _f:
     _device_data = json.load(_f)
 PROFILE_IDS        = list(_device_data.values())
