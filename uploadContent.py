@@ -85,12 +85,16 @@ def test_connection():
 # ─────────────────────────────────────────
 # 2. START ALL DEVICES
 # ─────────────────────────────────────────
-def start_all_devices():
+def start_all_devices(profile_ids: dict = None):
+    """
+    profile_ids : dict of {mobile: profile_id}. If None, starts all devices.
+    """
+    ids = list(profile_ids.values()) if profile_ids else PROFILE_IDS
     print(f"\n{'='*50}")
-    print("Starting all cloud phone devices...")
+    print(f"Starting {len(ids)} cloud phone device(s)...")
     print(f"{'='*50}")
 
-    valid_ids = [pid for pid in PROFILE_IDS if pid]
+    valid_ids = [pid for pid in ids if pid]
     if not valid_ids:
         print("❌ No valid profile IDs found.")
         return
@@ -156,20 +160,24 @@ def upload_file(local_file_path: str) -> str | None:
 # ─────────────────────────────────────────
 # 4. PUSH FILE TO ALL DEVICES
 # ─────────────────────────────────────────
-def push_file_to_all_devices(resource_url: str) -> list:
+def push_file_to_all_devices(resource_url: str, profile_ids: dict = None) -> list:
+    """
+    profile_ids : dict of {mobile: profile_id}. If None, pushes to all devices.
+    """
+    devices     = profile_ids if profile_ids else {PROFILE_MOBILE_MAP.get(pid, "?"): pid for pid in PROFILE_IDS if pid}
+    device_list = list(devices.items())   # [(mobile, profile_id)]
     print(f"\n{'='*50}")
-    print("Pushing file to all cloud phone devices...")
+    print(f"Pushing file to {len(device_list)} cloud phone device(s)...")
     print(f"{'='*50}")
 
     task_ids = []
-    total = len([pid for pid in PROFILE_IDS if pid])
+    total = len(device_list)
     count = 0
 
-    for profile_id in PROFILE_IDS:
+    for mobile, profile_id in device_list:
         if not profile_id:
             continue
         count += 1
-        mobile = PROFILE_MOBILE_MAP.get(profile_id, "?")
         res = api_post(
             f"{BASE_URL}/phone/uploadFile",
             headers=get_headers(),
@@ -183,7 +191,8 @@ def push_file_to_all_devices(resource_url: str) -> list:
             task_id = data.get("data", {}).get("taskId")
             task_ids.append({
                 "profileId": profile_id,
-                "taskId": task_id
+                "mobile":    mobile,
+                "taskId":    task_id
             })
             print(f"✅ Queued [{count}/{total}] → Mobile: {mobile} | Profile: {profile_id} | Task ID: {task_id}")
         else:
@@ -228,12 +237,16 @@ def check_delivery_status(task_ids: list):
 # ─────────────────────────────────────────
 # 6. STOP ALL DEVICES (optional cleanup)
 # ─────────────────────────────────────────
-def stop_all_devices():
+def stop_all_devices(profile_ids: dict = None):
+    """
+    profile_ids : dict of {mobile: profile_id}. If None, stops all devices.
+    """
+    ids = list(profile_ids.values()) if profile_ids else PROFILE_IDS
     print(f"\n{'='*50}")
-    print("Stopping all cloud phone devices...")
+    print(f"Stopping {len(ids)} cloud phone device(s)...")
     print(f"{'='*50}")
 
-    valid_ids = [pid for pid in PROFILE_IDS if pid]
+    valid_ids = [pid for pid in ids if pid]
     if not valid_ids:
         return
 
@@ -252,10 +265,16 @@ def stop_all_devices():
 # ─────────────────────────────────────────
 # UPLOAD WORKFLOW — callable from main.py
 # ─────────────────────────────────────────
-def run(local_file: str) -> str | None:
+def run(local_file: str, profile_ids: dict = None) -> str | None:
+    """
+    profile_ids : dict of {mobile: profile_id} for selected devices.
+                  If None, uses all devices.
+    Returns     : resource_url string on success, None on failure.
+    """
+    device_count = len(profile_ids) if profile_ids else len([p for p in PROFILE_IDS if p])
     print("\n🚀 GeeLark File Upload Script")
     print(f"   Auth Method : KEY VERIFICATION")
-    print(f"   Devices     : {len([p for p in PROFILE_IDS if p])}")
+    print(f"   Devices     : {device_count}")
     print(f"   File        : {local_file}")
 
     # Step 1: Test connection first
@@ -264,8 +283,8 @@ def run(local_file: str) -> str | None:
         print("\n⛔ Stopping — fix connection issue before proceeding.")
         return None
 
-    # Step 2: Start all devices
-    start_all_devices()
+    # Step 2: Start selected devices
+    start_all_devices(profile_ids)
 
     # Step 3: Upload file to GeeLark server
     resource_url = upload_file(local_file)
@@ -273,8 +292,8 @@ def run(local_file: str) -> str | None:
         print("\n⛔ Stopping — file upload failed.")
         return None
 
-    # Step 4: Push file to all devices
-    task_ids = push_file_to_all_devices(resource_url)
+    # Step 4: Push file to selected devices
+    task_ids = push_file_to_all_devices(resource_url, profile_ids)
 
     # Step 5: Check delivery status
     success = check_delivery_status(task_ids)
@@ -287,8 +306,8 @@ def run(local_file: str) -> str | None:
         print("\n⚠️  Some transfers are still pending.")
         print("   Wait a few more seconds and check the GeeLark dashboard.")
 
-    # Step 6: Stop devices
-    stop_all_devices()
+    # Step 6: Stop selected devices
+    stop_all_devices(profile_ids)
 
     return resource_url
 
