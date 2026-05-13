@@ -6,6 +6,7 @@ import uuid
 import hashlib
 import json
 from dotenv import load_dotenv
+from utils import api_post, api_put
 
 # ─────────────────────────────────────────
 # LOAD ENV VARIABLES
@@ -63,10 +64,10 @@ def test_connection():
     print(f"Testing connection using: KEY VERIFICATION method")
     print(f"{'='*50}")
 
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/phone/list",
         headers=get_headers(),
-        json={"page": 1, "pageSize": 100}
+        json_data={"page": 1, "pageSize": 100}
     )
 
     if res.status_code == 200 and res.json().get("code") == 0:
@@ -94,10 +95,10 @@ def start_all_devices():
         print("❌ No valid profile IDs found.")
         return
 
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/phone/start",
         headers=get_headers(),
-        json={"ids": valid_ids}
+        json_data={"ids": valid_ids}
     )
     data = res.json()
     if data.get("code") == 0:
@@ -125,10 +126,10 @@ def upload_file(local_file_path: str) -> str | None:
 
     # Step 3a: Get Upload URL
     file_ext = os.path.splitext(local_file_path)[1].lower().replace(".", "")
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/upload/getUrl",
         headers=get_headers(),
-        json={"fileType": file_ext}
+        json_data={"fileType": file_ext}
     )
     
     data = res.json()
@@ -142,7 +143,7 @@ def upload_file(local_file_path: str) -> str | None:
     # Step 3b: PUT file to the uploadUrl
     print("⏳ Uploading binary data to server...")
     with open(local_file_path, "rb") as f:
-        put_res = requests.put(upload_url, data=f)
+        put_res = api_put(upload_url, data=f)
         
     if put_res.status_code == 200:
         print(f"✅ File uploaded successfully!")
@@ -169,10 +170,10 @@ def push_file_to_all_devices(resource_url: str) -> list:
             continue
         count += 1
         mobile = PROFILE_MOBILE_MAP.get(profile_id, "?")
-        res = requests.post(
+        res = api_post(
             f"{BASE_URL}/phone/uploadFile",
             headers=get_headers(),
-            json={
+            json_data={
                 "id": profile_id,
                 "fileUrl": resource_url
             }
@@ -205,10 +206,10 @@ def check_delivery_status(task_ids: list):
 
     all_success = True
     for item in task_ids:
-        res = requests.post(
+        res = api_post(
             f"{BASE_URL}/phone/uploadFile/result",
             headers=get_headers(),
-            json={"taskId": item["taskId"]}
+            json_data={"taskId": item["taskId"]}
         )
         data = res.json()
         status = data.get("data", {}).get("status", 0)
@@ -236,10 +237,10 @@ def stop_all_devices():
     if not valid_ids:
         return
 
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/phone/stop",
         headers=get_headers(),
-        json={"ids": valid_ids}
+        json_data={"ids": valid_ids}
     )
     data = res.json()
     if data.get("code") == 0:
@@ -251,7 +252,7 @@ def stop_all_devices():
 # ─────────────────────────────────────────
 # UPLOAD WORKFLOW — callable from main.py
 # ─────────────────────────────────────────
-def run(local_file: str):
+def run(local_file: str) -> str | None:
     print("\n🚀 GeeLark File Upload Script")
     print(f"   Auth Method : KEY VERIFICATION")
     print(f"   Devices     : {len([p for p in PROFILE_IDS if p])}")
@@ -261,7 +262,7 @@ def run(local_file: str):
     connected = test_connection()
     if not connected:
         print("\n⛔ Stopping — fix connection issue before proceeding.")
-        return
+        return None
 
     # Step 2: Start all devices
     start_all_devices()
@@ -270,7 +271,7 @@ def run(local_file: str):
     resource_url = upload_file(local_file)
     if not resource_url:
         print("\n⛔ Stopping — file upload failed.")
-        return
+        return None
 
     # Step 4: Push file to all devices
     task_ids = push_file_to_all_devices(resource_url)
@@ -288,6 +289,8 @@ def run(local_file: str):
 
     # Step 6: Stop devices
     stop_all_devices()
+
+    return resource_url
 
 if __name__ == "__main__":
     import sys as _sys
