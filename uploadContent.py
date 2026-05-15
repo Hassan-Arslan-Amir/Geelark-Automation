@@ -265,10 +265,14 @@ def stop_all_devices(profile_ids: dict = None):
 # ─────────────────────────────────────────
 # UPLOAD WORKFLOW — callable from main.py
 # ─────────────────────────────────────────
-def run(local_file: str, profile_ids: dict = None) -> str | None:
+def run(local_file: str, profile_ids: dict = None, auto_stop: bool = True) -> str | None:
     """
     profile_ids : dict of {mobile: profile_id} for selected devices.
                   If None, uses all devices.
+    auto_stop   : If True (default), stops devices after upload.
+                  Pass False when calling from main.py so devices stay
+                  running through the posting phase — prevents RPA failures
+                  caused by devices restarting mid-task.
     Returns     : resource_url string on success, None on failure.
     """
     device_count = len(profile_ids) if profile_ids else len([p for p in PROFILE_IDS if p])
@@ -306,8 +310,13 @@ def run(local_file: str, profile_ids: dict = None) -> str | None:
         print("\n⚠️  Some transfers are still pending.")
         print("   Wait a few more seconds and check the GeeLark dashboard.")
 
-    # Step 6: Stop selected devices
-    stop_all_devices(profile_ids)
+    # Step 6: Stop selected devices (only if auto_stop is enabled)
+    # When called from main.py, auto_stop=False keeps devices running
+    # so RPA posting tasks can execute without needing a cold restart.
+    if auto_stop:
+        stop_all_devices(profile_ids)
+    else:
+        print("\n⏩ Skipping device stop — caller will stop devices after posting.")
 
     return resource_url
 
