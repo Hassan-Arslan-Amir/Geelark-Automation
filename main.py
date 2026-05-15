@@ -1,9 +1,10 @@
 import sys
 import os
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "getContent"))
 from getContent import main as download_video
-from uploadContent import run as upload_to_devices
+from uploadContent import run as upload_to_devices, stop_all_devices
 from Instagram.postReelVideoOnInsta import post_reels_on_all_devices
 from Instagram.postReelImageOnInsta import post_images_on_all_devices
 from TikTok.postOnTikTok import post_videos_on_devices as tiktok_post_videos
@@ -55,7 +56,7 @@ def run_pipeline():
         return False
 
     # ── Random selection: 10 devices + 1 compatible platform ──────────────────
-    selected_devices     = select_devices(10)               # {mobile: profile_id}
+    selected_devices     = select_devices(48)               # {mobile: profile_id}
     selected_profile_ids = list(selected_devices.values())  # [profile_id, ...]
     platform             = select_platform(media_type)      # e.g. "instagram"
     print(f"\n🎯 This run: platform={platform.upper()}, devices={len(selected_devices)}, media={media_type}")
@@ -64,7 +65,9 @@ def run_pipeline():
     content_id = create_content_record(local_path=local_file, platform=platform)
 
     # Step 2: Upload to GeeLark CDN and push file to selected devices only
-    resource_url = upload_to_devices(local_file, selected_devices)
+    # Video  → auto_stop=True  (devices stopped after upload; video RPA is resilient to cold restart)
+    # Image  → auto_stop=False (devices kept running; image RPA needs stable device at execution time)
+    resource_url = upload_to_devices(local_file, selected_devices, auto_stop=(media_type == "video"))
     # resource_url = "https://singapore-upgrade.geelark.com/open-upload/611903133815210283/20260511/4YykBelO.png"
     if not resource_url:
         print(f"\n⛔ Stopping — upload failed, skipping {platform} post.")
@@ -129,6 +132,15 @@ def run_pipeline():
     # Log Step 3 → update content record with caption + successful device IDs
     if content_id:
         update_content_caption(content_id, CAPTION, successful_ids)
+
+    # Step 6: For image — devices were kept running (auto_stop=False).
+    # Wait 30 minutes for all RPA tasks to complete, then stop them.
+    # For video — devices were already stopped inside uploadContent.
+    if media_type == "image":
+        print("\n⏳ Waiting 30 minutes for all posting tasks to complete...")
+        time.sleep(1800)
+        stop_all_devices(selected_devices)
+        print("✅ Devices stopped.")
 
     return True
 
