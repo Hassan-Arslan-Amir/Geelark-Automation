@@ -318,11 +318,11 @@ Rules:
 # ─────────────────────────────────────────
 def run_full_pipeline(
     media_path:      str,
-    media_type:      str  = "video",   # "video" or "image"
+    media_type:      str  = "video",
     tone:            str  = "engaging",
     include_hashtags: bool = True,
     language:        str  = "English",
-    custom_caption:  str  = None,      # Override auto-generation
+    custom_caption:  str  = None,
 ):
     """
     Complete pipeline:
