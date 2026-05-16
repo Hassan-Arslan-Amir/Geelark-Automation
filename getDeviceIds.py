@@ -52,21 +52,16 @@ def fetch_all_devices():
         
         if data.get("code") != 0:
             print(f"❌ API Error: {data.get('msg')}")
-            break
-            
+            break 
         # According to format.md, the list is under data.items
         items = data.get("data", {}).get("items", [])
         if not items:
-            break
-            
+            break 
         devices.extend(items)
-        
         # If the number of items is less than page_size, we've reached the end
         if len(items) < page_size:
             break
-            
         page += 1
-        
     return devices
 
 def main():
@@ -75,11 +70,9 @@ def main():
     if not APP_ID or not API_KEY:
         print("❌ Missing GEELARK_APP_ID or GEELARK_API_KEY in .env file.")
         return
-
     # 1. Get data from Geelark
     devices = fetch_all_devices()
     print(f"✅ Successfully fetched {len(devices)} devices from Geelark.")
-    
     # 2. Check for existing deviceIDs.json
     existing_data = {}
     if os.path.exists(OUTPUT_FILE):
@@ -90,25 +83,18 @@ def main():
         except json.JSONDecodeError:
             print(f"⚠️ '{OUTPUT_FILE}' was invalid or empty. Starting fresh.")
     else:
-        print(f"✨ '{OUTPUT_FILE}' does not exist. Creating a new one.")
-        
+        print(f"✨ '{OUTPUT_FILE}' does not exist. Creating a new one.")     
     # 3. Update the data
     updates_count = 0
-    # We will store it as a dictionary with serialNo as the key, and id as the value
-    # Example: {"1": "123456ABCDEF", "2": "987654XYZ"}
     for device in devices:
         serial_no = str(device.get("serialNo", ""))
         dev_id = str(device.get("id", ""))
         serial_name = device.get("serialName", "Unknown")
         
         if serial_no and dev_id:
-            # We can store a dict object with id and name for better readability, 
-            # but user requested just storing serial number and device ID. 
-            # We'll use the serial number as the key and the device ID as the value.
             if existing_data.get(serial_no) != dev_id:
                 updates_count += 1
-            existing_data[serial_no] = dev_id
-            
+            existing_data[serial_no] = dev_id          
     # 4. Save to deviceIDs.json
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(existing_data, f, indent=4)

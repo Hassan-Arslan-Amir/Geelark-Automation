@@ -8,6 +8,7 @@ from uploadContent import run as upload_to_devices, stop_all_devices
 from Instagram.postReelVideoOnInsta import post_reels_on_all_devices
 from Instagram.postReelImageOnInsta import post_images_on_all_devices
 from TikTok.postOnTikTok import post_videos_on_devices as tiktok_post_videos
+from TikTok.postOnTikTok import post_images_on_devices as tiktok_post_images
 from Facebook.postOnFacebook import post_videos_on_devices as facebook_post_videos
 from Facebook.postOnFacebook import post_images_on_devices as facebook_post_images
 from createCaptions import run_full_pipeline
@@ -56,7 +57,7 @@ def run_pipeline():
         return False
 
     # ── Random selection: 10 devices + 1 compatible platform ──────────────────
-    selected_devices     = select_devices(48)               # {mobile: profile_id}
+    selected_devices     = select_devices(10)               # {mobile: profile_id}
     selected_profile_ids = list(selected_devices.values())  # [profile_id, ...]
     platform             = select_platform(media_type)      # e.g. "instagram"
     print(f"\n🎯 This run: platform={platform.upper()}, devices={len(selected_devices)}, media={media_type}")
@@ -99,11 +100,18 @@ def run_pipeline():
             )
 
     elif platform == "tiktok":
-        results = tiktok_post_videos(
-            video_urls  = [resource_url],
-            caption     = CAPTION,
-            profile_ids = selected_devices,
-        )
+        if media_type == "video":
+            results = tiktok_post_videos(
+                video_urls  = [resource_url],
+                caption     = CAPTION,
+                profile_ids = selected_devices,
+            )
+        else:  # image
+            results = tiktok_post_images(
+                image_urls  = [resource_url],
+                caption     = CAPTION,
+                profile_ids = selected_devices,
+            )
 
     elif platform == "facebook":
         if media_type == "video":
@@ -134,8 +142,6 @@ def run_pipeline():
         update_content_caption(content_id, CAPTION, successful_ids)
 
     # Step 6: For image — devices were kept running (auto_stop=False).
-    # Wait 30 minutes for all RPA tasks to complete, then stop them.
-    # For video — devices were already stopped inside uploadContent.
     if media_type == "image":
         print("\n⏳ Waiting 30 minutes for all posting tasks to complete...")
         time.sleep(1800)

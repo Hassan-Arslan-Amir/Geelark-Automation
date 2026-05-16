@@ -16,9 +16,9 @@ PLATFORM_REGISTRY = {
     "instagram": {
         "supports": ["video", "image"],
     },
-    # "tiktok": {
-    #     "supports": ["video"],       # TikTok does not support image-only posts
-    # },
+    "tiktok": {
+        "supports": ["video", "image"],
+    },
     # "facebook": {
     #     "supports": ["video", "image"],
     # },

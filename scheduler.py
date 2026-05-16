@@ -48,9 +48,22 @@ def main():
         print(f"   Next run at      : {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
         print("─" * 55)
 
-        # Sleep until next run
+        # Countdown until next run — updates every minute in-place
         sleep_seconds = INTERVAL_HOURS * 3600
-        time.sleep(sleep_seconds)
+        remaining     = sleep_seconds
+        while remaining > 0:
+            mins, secs = divmod(remaining, 60)
+            hrs,  mins = divmod(mins, 60)
+            next_str   = next_run.strftime('%H:%M:%S')
+            print(
+                f"\r⏳ Next run at {next_str} — "
+                f"waiting {int(hrs):02d}h {int(mins):02d}m {int(secs):02d}s ...   ",
+                end="", flush=True
+            )
+            tick = min(60, remaining)
+            time.sleep(tick)
+            remaining -= tick
+        print()  # newline after countdown finishes
 
 
 if __name__ == "__main__":
