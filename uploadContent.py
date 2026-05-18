@@ -6,6 +6,7 @@ import uuid
 import hashlib
 import json
 from dotenv import load_dotenv
+from utils import api_post, api_put
 
 # ─────────────────────────────────────────
 # LOAD ENV VARIABLES
@@ -63,10 +64,10 @@ def test_connection():
     print(f"Testing connection using: KEY VERIFICATION method")
     print(f"{'='*50}")
 
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/phone/list",
         headers=get_headers(),
-        json={"page": 1, "pageSize": 100}
+        json_data={"page": 1, "pageSize": 100}
     )
 
     if res.status_code == 200 and res.json().get("code") == 0:
@@ -84,20 +85,24 @@ def test_connection():
 # ─────────────────────────────────────────
 # 2. START ALL DEVICES
 # ─────────────────────────────────────────
-def start_all_devices():
+def start_all_devices(profile_ids: dict = None):
+    """
+    profile_ids : dict of {mobile: profile_id}. If None, starts all devices.
+    """
+    ids = list(profile_ids.values()) if profile_ids else PROFILE_IDS
     print(f"\n{'='*50}")
-    print("Starting all cloud phone devices...")
+    print(f"Starting {len(ids)} cloud phone device(s)...")
     print(f"{'='*50}")
 
-    valid_ids = [pid for pid in PROFILE_IDS if pid]
+    valid_ids = [pid for pid in ids if pid]
     if not valid_ids:
         print("❌ No valid profile IDs found.")
         return
 
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/phone/start",
         headers=get_headers(),
-        json={"ids": valid_ids}
+        json_data={"ids": valid_ids}
     )
     data = res.json()
     if data.get("code") == 0:
@@ -125,10 +130,10 @@ def upload_file(local_file_path: str) -> str | None:
 
     # Step 3a: Get Upload URL
     file_ext = os.path.splitext(local_file_path)[1].lower().replace(".", "")
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/upload/getUrl",
         headers=get_headers(),
-        json={"fileType": file_ext}
+        json_data={"fileType": file_ext}
     )
     
     data = res.json()
@@ -142,7 +147,7 @@ def upload_file(local_file_path: str) -> str | None:
     # Step 3b: PUT file to the uploadUrl
     print("⏳ Uploading binary data to server...")
     with open(local_file_path, "rb") as f:
-        put_res = requests.put(upload_url, data=f)
+        put_res = api_put(upload_url, data=f)
         
     if put_res.status_code == 200:
         print(f"✅ File uploaded successfully!")
@@ -155,24 +160,28 @@ def upload_file(local_file_path: str) -> str | None:
 # ─────────────────────────────────────────
 # 4. PUSH FILE TO ALL DEVICES
 # ─────────────────────────────────────────
-def push_file_to_all_devices(resource_url: str) -> list:
+def push_file_to_all_devices(resource_url: str, profile_ids: dict = None) -> list:
+    """
+    profile_ids : dict of {mobile: profile_id}. If None, pushes to all devices.
+    """
+    devices     = profile_ids if profile_ids else {PROFILE_MOBILE_MAP.get(pid, "?"): pid for pid in PROFILE_IDS if pid}
+    device_list = list(devices.items())   # [(mobile, profile_id)]
     print(f"\n{'='*50}")
-    print("Pushing file to all cloud phone devices...")
+    print(f"Pushing file to {len(device_list)} cloud phone device(s)...")
     print(f"{'='*50}")
 
     task_ids = []
-    total = len([pid for pid in PROFILE_IDS if pid])
+    total = len(device_list)
     count = 0
 
-    for profile_id in PROFILE_IDS:
+    for mobile, profile_id in device_list:
         if not profile_id:
             continue
         count += 1
-        mobile = PROFILE_MOBILE_MAP.get(profile_id, "?")
-        res = requests.post(
+        res = api_post(
             f"{BASE_URL}/phone/uploadFile",
             headers=get_headers(),
-            json={
+            json_data={
                 "id": profile_id,
                 "fileUrl": resource_url
             }
@@ -182,7 +191,8 @@ def push_file_to_all_devices(resource_url: str) -> list:
             task_id = data.get("data", {}).get("taskId")
             task_ids.append({
                 "profileId": profile_id,
-                "taskId": task_id
+                "mobile":    mobile,
+                "taskId":    task_id
             })
             print(f"✅ Queued [{count}/{total}] → Mobile: {mobile} | Profile: {profile_id} | Task ID: {task_id}")
         else:
@@ -205,10 +215,10 @@ def check_delivery_status(task_ids: list):
 
     all_success = True
     for item in task_ids:
-        res = requests.post(
+        res = api_post(
             f"{BASE_URL}/phone/uploadFile/result",
             headers=get_headers(),
-            json={"taskId": item["taskId"]}
+            json_data={"taskId": item["taskId"]}
         )
         data = res.json()
         status = data.get("data", {}).get("status", 0)
@@ -227,19 +237,23 @@ def check_delivery_status(task_ids: list):
 # ─────────────────────────────────────────
 # 6. STOP ALL DEVICES (optional cleanup)
 # ─────────────────────────────────────────
-def stop_all_devices():
+def stop_all_devices(profile_ids: dict = None):
+    """
+    profile_ids : dict of {mobile: profile_id}. If None, stops all devices.
+    """
+    ids = list(profile_ids.values()) if profile_ids else PROFILE_IDS
     print(f"\n{'='*50}")
-    print("Stopping all cloud phone devices...")
+    print(f"Stopping {len(ids)} cloud phone device(s)...")
     print(f"{'='*50}")
 
-    valid_ids = [pid for pid in PROFILE_IDS if pid]
+    valid_ids = [pid for pid in ids if pid]
     if not valid_ids:
         return
 
-    res = requests.post(
+    res = api_post(
         f"{BASE_URL}/phone/stop",
         headers=get_headers(),
-        json={"ids": valid_ids}
+        json_data={"ids": valid_ids}
     )
     data = res.json()
     if data.get("code") == 0:
@@ -251,29 +265,39 @@ def stop_all_devices():
 # ─────────────────────────────────────────
 # UPLOAD WORKFLOW — callable from main.py
 # ─────────────────────────────────────────
-def run(local_file: str):
+def run(local_file: str, profile_ids: dict = None, auto_stop: bool = True) -> str | None:
+    """
+    profile_ids : dict of {mobile: profile_id} for selected devices.
+                  If None, uses all devices.
+    auto_stop   : If True (default), stops devices after upload.
+                  Pass False when calling from main.py so devices stay
+                  running through the posting phase — prevents RPA failures
+                  caused by devices restarting mid-task.
+    Returns     : resource_url string on success, None on failure.
+    """
+    device_count = len(profile_ids) if profile_ids else len([p for p in PROFILE_IDS if p])
     print("\n🚀 GeeLark File Upload Script")
     print(f"   Auth Method : KEY VERIFICATION")
-    print(f"   Devices     : {len([p for p in PROFILE_IDS if p])}")
+    print(f"   Devices     : {device_count}")
     print(f"   File        : {local_file}")
 
     # Step 1: Test connection first
     connected = test_connection()
     if not connected:
         print("\n⛔ Stopping — fix connection issue before proceeding.")
-        return
+        return None
 
-    # Step 2: Start all devices
-    start_all_devices()
+    # Step 2: Start selected devices
+    start_all_devices(profile_ids)
 
     # Step 3: Upload file to GeeLark server
     resource_url = upload_file(local_file)
     if not resource_url:
         print("\n⛔ Stopping — file upload failed.")
-        return
+        return None
 
-    # Step 4: Push file to all devices
-    task_ids = push_file_to_all_devices(resource_url)
+    # Step 4: Push file to selected devices
+    task_ids = push_file_to_all_devices(resource_url, profile_ids)
 
     # Step 5: Check delivery status
     success = check_delivery_status(task_ids)
@@ -286,8 +310,15 @@ def run(local_file: str):
         print("\n⚠️  Some transfers are still pending.")
         print("   Wait a few more seconds and check the GeeLark dashboard.")
 
-    # Step 6: Stop devices
-    stop_all_devices()
+    # Step 6: Stop selected devices (only if auto_stop is enabled)
+    # When called from main.py, auto_stop=False keeps devices running
+    # so RPA posting tasks can execute without needing a cold restart.
+    if auto_stop:
+        stop_all_devices(profile_ids)
+    else:
+        print("\n⏩ Skipping device stop — caller will stop devices after posting.")
+
+    return resource_url
 
 if __name__ == "__main__":
     import sys as _sys

@@ -1,151 +1,121 @@
-Get all cloud phones
+Add video/image/warmup task
 API Description
-Retrieve the list of cloud phones.
-
+Create a warmup task by directly calling the add task interface.
+To create video or image set tasks, you need to upload the materials first, then call the add task interface.
+The warmup task created by calling this interface is not automatically retried.
 Request URL
-https://openapi.geelark.com/open/v1/phone/list
+https://openapi.geelark.com/open/v1/task/add
 Request Method
 POST
 Request Parameters
-Pagination Parameters
 Parameter Name	Required	Type	Description	Example
-page	No	integer	Page number, minimum is 1	1
-pageSize	No	integer	Number of records per page, minimum is 1, maximum is 100	10
-Query Parameters (Ignored if empty)
+planName	No	string	Task plan name, auto-generated if not provided	testAdd
+remark	No	string	Remarks, up to 200 characters	task
+taskType	Yes	integer	Task type
+1 Publish video
+2 Warmup
+3 Publish image set	3
+list	Yes	array	Task parameter array, create a maximum of 100 tasks at a time	Refer to request examples
+Publish Video Task Parameters
 Parameter Name	Required	Type	Description	Example
-ids	No	array[string]	Cloud phone ID array，The maximum length of the array is 100. If the array is not empty, these two parameters： page pageSize, will not take effect	[“5213214343124321”]
-serialName	No	string	Cloud phone name	test
-remark	No	string	Cloud phone remark	test
-groupName	No	string	Cloud phone group name	test group
-tags	No	array[string]	List of cloud phone tag names	See example
-chargeMode	No	integer	charge mode	0 pay per minute, 1 monthly subscription; If this field is left empty, all charge mode will be queried.
-openStatus	no	integer	Power state	0 Close；1 On
-proxyIds	no	array[string]	List of proxy IDs. The maximum array length is 10.	[“5213214343124321”]
-serialNos	no	array[string]	List of cloud phone serial number. The maximum array length is 100.	[“238”]
-Request Example
+scheduleAt	Yes	integer	Scheduled time, in seconds timestamp. If the value is less than the current time, the value is calculated based on the current time.	1718744459
+envId	Yes	string	Cloud phone ID	123456654321
+video	Yes	string	Video URL	https://demo.geelark.com/open-upload/DhRP36s3.mp4 , to upload videos, please refer to Upload Temporary Files to GeeLark
+videoDesc	No	string	Video description. Maximum 4000 characters	This is a video
+productId	No	string	product id	7498614361651,How to get the product ID: https://help.geelark.com/video-id-product-id
+productTitle	No	string	Product display title	Title
+refVideoId	No	string	Similar video ID	722856939 ,How to get the video ID: https://help.geelark.com/video-id-product-id
+maxTryTimes	No	integer	Maximum number of automatic retries. The value ranges from 0 to 3. The default value is 3	1
+timeoutMin	No	integer	Time-out period. The value ranges from 30 to 80 (unit minute). The default value is 80	30
+sameVideoVolume	No	integer	Same video volume, 0-100	30
+sourceVideoVolume	No	integer	Original video volume, 0-100	30
+markAI	No	bool	Whether to label AI generated content, default is false	false
+cover	No	string	Video cover	https://demo.geelark.com/open-upload/DhRP36s3.jpg , to upload images, please refer to Upload Temporary Files to GeeLark
+needShareLink	No	bool	Whether to obtain the sharing link, the default value is false	false
+Warmup Task Parameters
+Parameter Name	Required	Type	Description	Example
+scheduleAt	Yes	integer	Scheduled time, in seconds timestamp. If the value is less than the current time, the value is calculated based on the current time.	1718744459
+envId	Yes	string	Cloud phone ID	123456654321
+action	Yes	string	Warmup action
+search profile - Search personal profile
+search video - Search short videos
+browse video - Randomly browse videos	browse video
+keywords	No	array[string]	Search keyword, required when searching behavior, optional when browsing behavior	Refer to request examples
+duration	Yes	integer	Browsing duration, in minutes	10
+Publish Image Set Task Parameters
+Parameter Name	Required	Type	Description	Example
+scheduleAt	Yes	integer	Scheduled time, in seconds timestamp. If the value is less than the current time, the value is calculated based on the current time.	1718744459
+envId	Yes	string	Cloud phone ID	123456654321
+images	Yes	array	Image URLs	Refer to request examples , to upload images, please refer to Upload Temporary Files to GeeLark
+videoDesc	No	string	Video description. Maximum 4000 characters	This is an image set video
+videoId	No	string	Same video ID	722856939 ,How to get the video ID: https://help.geelark.com/video-id-product-id
+videoTitle	No	string	Gallery Title. Maximum 90 characters	This is a gallery title
+productId	No	string	product id	7498614361651,How to get the product ID: https://help.geelark.com/video-id-product-id
+productTitle	No	string	Product display title	Title
+maxTryTimes	No	integer	Maximum number of automatic retries. The value ranges from 0 to 3. The default value is 3	1
+timeoutMin	No	integer	Time-out period. The value ranges from 30 to 80 (unit minute). The default value is 80	30
+sameVideoVolume	No	integer	Same video volume, 0-100	30
+markAI	No	bool	Whether to label AI generated content, default is false	false
+needShareLink	No	bool	Whether to obtain the sharing link, the default value is false	false
+Request Examples
+Example 1: Warmup
 {
-    "page":1,
-    "pageSize":10,
-    "serialName": "test",
-    "remark":"",
-    "groupName":"",
-    "tags":[
-        "tag1",
-        "tag2"
-    ],
-    "openStatus" : 1,
-    "proxyIds": ["602943680722009770"],
-    "serialNos": ["238"]
+    "planName": "testAdd",
+    "taskType": 2,
+    "list": [
+        {
+            "scheduleAt": 1718744459,
+            "envId": "123456654321",
+            "action": "search video",
+            "keywords": ["hi"],
+            "duration": 10
+        }
+    ]
+}
+Example 2: Publish Video
+{
+    "planName": "testAdd",
+    "taskType": 1,
+    "list": [
+        {
+            "scheduleAt": 1718744459,
+            "envId": "123456654321",
+            "video": "https://demo.geelark.com/open-upload/DhRP36s3.mp4"
+        }
+    ]
+}
+Example 3: Publish Image Set
+{
+    "planName": "testAdd",
+    "taskType": 3,
+    "list": [
+        {
+            "scheduleAt": 1718744459,
+            "envId": "123456654321",
+            "images": ["https://demo.geelark.com/open-upload/DhRP36s3.jpg", "https://demo.geelark.com/open-upload/DhRP36s3.jpg"]
+        }
+    ]
 }
 Response Data Description
 Parameter Name	Type	Description
-total	integer	Total number of cloud phones
-page	integer	Page number
-pageSize	integer	Page size
-items	array[Phone]	List of cloud phones
-items Cloud Phone Data <Phone>
-Parameter Name	Type	Description
-id	string	Cloud phone ID
-serialName	string	Cloud phone name
-serialNo	string	Cloud phone serial number
-group	Group	Cloud phone group information
-remark	string	Cloud phone remark
-status	integer	Cloud phone status
-0 - Started
-1 - Starting
-2 - Shut down
-tags	array[Tag]	List of cloud phone tags
-equipmentInfo	EquipmentInfo	cloud phone equipment info
-proxy	Proxy	Proxy info
-chargeMode	integer	charge mode: 0 pay per minute, 1 monthly subscription
-hasBind	bool	Is the device bound to a monthly subscription
-monthlyExpire	integer	Monthly subscription expiration time, timestamp in seconds
-rpaStatus	integer	Whether RPA is running: 1 = running, 0 = not running
-createTime	integer	Cloud phone creation time, second-level timestamp
-group Group Information <Group>
-Parameter Name	Type	Description
-id	string	Group ID
-name	string	Group name
-remark	string	Group remark
-tags Cloud Phone Tags <Tag>
-Parameter Name	Type	Description
-name	string	Cloud phone tag name
-equipmentInfo Cloud phone equipment info <EquipmentInfo>
-Parameter Name	Type	Description
-countryName	string	country name, please refer to the Country Name Reference Table
-phoneNumber	string	phone number
-enableSim	integer	is Sim enable : 0 unable 1 enable
-imei	string	IMEI
-osVersion	string	system version
-wifiBssid	string	Wi-Fi MAC Address
-mac	string	phone Wi-Fi MAC Address
-bluetoothMac	string	bluetooth Mac Address
-timeZone	string	timezone
-deviceBrand	string	brand
-deviceModel	string	model
-deviceName	string	Device name
-netType	integer	Network type: 0 – Wi-Fi, 1 – Mobile network
-language	string	Cloud phone language
-province	string	Province; only populated if specified at creation time
-city	string	City; only populated if specified at creation time
-proxy Proxy info <Proxy>
-Parameter Name	Type	Description
-type	string	Proxy type (socks5, http, https)
-server	string	Proxy server
-port	integer	Proxy port
-username	string	Proxy username
-password	string	Proxy password
+taskIds	array	Array of task IDs
 Response Example
 {
-    "traceId": "123456ABCDEF",
+    "traceId": "123456ABCEDF",
     "code": 0,
     "msg": "success",
     "data": {
-        "total": 1,
-        "page": 1,
-        "pageSize": 10,
-        "items": [
-            {
-                "id": "123456ABCDEF",
-                "serialName": "test",
-                "serialNo": "1",
-                "group": {
-                    "id": "123456ABCDEF",
-                    "name": "test group",
-                    "remark": "group remark"
-                },
-                "remark": "env remark",
-                "status": 0,
-                "tags": [
-                    {"name": "hi"},
-                    {"name": "test"}
-                ],
-                "equipmentInfo": {
-                    "countryName": "Thailand",
-                    "phoneNumber": "+66877382166",
-                    "enableSim": 1,
-                    "imei": "863406055475987",
-                    "osVersion": "Android 11.0",
-                    "wifiBssid": "1C:1D:67:B1:C1:76",
-                    "mac": "9C:A5:C0:5F:C5:AD",
-                    "bluetoothMac": "D0:15:4A:5B:7E:AE",
-                    "timeZone": "Asia/Bangkok",
-                    "deviceName": "",
-                    "netType": 1,
-                    "language": "en-US",
-                    "province": "",
-                    "city": ""
-                 },
-                "proxy": {
-                    "type": "socks5",
-                    "server": "129.129.129.129",
-                    "port": 30000,
-                    "username": "user",
-                    "password": "pass"
-                }
-            }
+        "taskIds": [
+            "123456ABCEDF"
         ]
     }
 }
 Error Codes
-Error codes can be found in the Cloud Phone Error Codes.
+The following are specific error codes for this interface. For other error codes, please refer to the Cloud Phone Error Codes.
+
+Error Code	Description
+41000	Insufficient task credits
+43004	Cloud phone has expired, please renew or upgrade your plan
+41001	balance not enough
+43018	The monthly cloud mobile phone is not bound to the monthly device
+48004	The app required by the task does not meet the requirements

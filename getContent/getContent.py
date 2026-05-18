@@ -1,11 +1,16 @@
 import os
 import io
+import sys
 from datetime import datetime
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+
+# Allow importing supabase_logger from the parent directory
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from supabase_logger import get_content_status
 
 # ============================================================
 # CONFIGURATION — Only edit this section
@@ -78,9 +83,18 @@ def get_files_in_folder(service, folder_id):
     return results.get('files', [])
 
 
+def sanitize_filename(file_name: str) -> str:
+    """Replace characters that are illegal in Windows file paths."""
+    # Windows illegal characters: \ / : * ? " < > |
+    for ch in ['\\', '/', ':', '*', '?', '"', '<', '>', '|']:
+        file_name = file_name.replace(ch, '-')
+    return file_name
+
+
 def download_file(service, file_id, file_name, download_path):
     """Download a single video file to the given path."""
     os.makedirs(download_path, exist_ok=True)
+    file_name = sanitize_filename(file_name)
     file_path = os.path.join(download_path, file_name)
 
     print(f"  ⬇  Downloading: {file_name}")
@@ -143,46 +157,68 @@ def main():
         print(f"   📁 {f['name']}")
     print()
 
-    # Step 4: Download ONE new video per run
+    # Step 4: Download ONE new file per run
     download_happened = False
     downloaded_file_path = None
+    folder_was_empty = True
+    all_already_downloaded = False
 
     for folder in todays_folders:
         if download_happened:
             break
 
         print(f"📁 Folder: {folder['name']}")
-        videos = get_files_in_folder(service, folder['id'])
+        files = get_files_in_folder(service, folder['id'])
 
-        if not videos:
-            print(f"   ⚠️  No files found in this folder\n")
+        if not files:
+            print(f"   ⚠️  Folder is empty — no files uploaded yet.\n")
             continue
 
-        print(f"   🎬 Found {len(videos)} file(s) — videos & images\n")
+        folder_was_empty = False
+        print(f"   🎬 Found {len(files)} file(s) — videos & images\n")
         folder_download_path = os.path.join(BASE_DOWNLOAD_DIR, folder['name'])
 
-        for video in videos:
-            file_path = os.path.join(folder_download_path, video['name'])
+        all_skipped = True
+        for file in files:
+            file_path = os.path.join(folder_download_path, sanitize_filename(file['name']))
 
-            if os.path.exists(file_path):
-                print(f"  ⏭  Skipping (already exists): {video['name']}")
+            status = get_content_status(file_path)
+
+            if status == "posted":
+                print(f"  ⏭  Skipping (already posted): {file['name']}")
                 continue
 
-            # Download this one video then stop
-            success = download_file(service, video['id'], video['name'], folder_download_path)
+            all_skipped = False
+
+            if status == "not_posted" and os.path.exists(file_path):
+                # File was downloaded before but posting was interrupted — reuse it
+                print(f"  ♻️  Reusing unposted file: {file['name']}")
+                downloaded_file_path = file_path
+                download_happened = True
+                break
+
+            # status == "not_found" or file missing on disk — download it
+            success = download_file(service, file['id'], file['name'], folder_download_path)
             if success:
                 downloaded_file_path = file_path
                 download_happened = True
                 break
 
+        if all_skipped:
+            all_already_downloaded = True
+
     # Step 5: Final message
     print()
     print("=" * 50)
     if download_happened:
-        print("   ✅ 1 video downloaded successfully!")
+        print("   ✅ 1 file downloaded successfully!")
         print("   ▶  Run the script again to download the next one.")
-    else:
-        print("   ✅ All videos for today are already downloaded!")
+    elif folder_was_empty:
+        print("   ⚠️  Today's folder exists but is empty.")
+        print("       Your client has not uploaded any content yet.")
+    elif all_already_downloaded:
+        print("   ✅ All files for today are already downloaded!")
+        print("       No new content to process.")
     print(f"   📅 Date: {today.strftime('%d-%m-%Y')}")
     print("=" * 50)
     print("\n🎉 Done!\n")
