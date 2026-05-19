@@ -116,7 +116,7 @@ Requirements:
                 ]
             }
         ],
-        max_tokens=500
+        max_tokens=max(175, int(max_length / 3.5))
     )
 
     caption = response.choices[0].message.content.strip()
@@ -132,6 +132,7 @@ def generate_caption_for_image(
     include_hashtags: bool = True,
     language:        str  = "English",
     custom_prompt:   str  = None,
+    max_length:      int  = 2200,
 ) -> str:
     """
     Generate an Instagram caption for an image file.
@@ -148,7 +149,8 @@ def generate_caption_for_image(
         tone             = tone,
         include_hashtags = include_hashtags,
         language         = language,
-        custom_prompt    = custom_prompt
+        custom_prompt    = custom_prompt,
+        max_length       = max_length,
     )
 
     print(f"\n📝 Generated Caption:\n{'-'*40}\n{caption}\n{'-'*40}")
@@ -164,6 +166,7 @@ def generate_caption_for_video(
     include_hashtags: bool = True,
     language:        str  = "English",
     custom_prompt:   str  = None,
+    max_length:      int  = 2200,
 ) -> str:
     """
     Generate an Instagram caption for a video file.
@@ -181,7 +184,8 @@ def generate_caption_for_video(
         tone             = tone,
         include_hashtags = include_hashtags,
         language         = language,
-        custom_prompt    = custom_prompt
+        custom_prompt    = custom_prompt,
+        max_length       = max_length,
     )
 
     print(f"\n📝 Generated Caption:\n{'-'*40}\n{caption}\n{'-'*40}")
@@ -323,6 +327,7 @@ def run_full_pipeline(
     include_hashtags: bool = True,
     language:        str  = "English",
     custom_caption:  str  = None,
+    max_length:      int  = 2200,
 ):
     """
     Complete pipeline:
@@ -345,6 +350,7 @@ def run_full_pipeline(
             tone             = tone,
             include_hashtags = include_hashtags,
             language         = language,
+            max_length       = max_length,
         )
     elif media_type == "video":
         caption = generate_caption_for_video(
@@ -352,6 +358,7 @@ def run_full_pipeline(
             tone             = tone,
             include_hashtags = include_hashtags,
             language         = language,
+            max_length       = max_length,
         )
     else:
         raise ValueError("media_type must be 'video' or 'image'")
