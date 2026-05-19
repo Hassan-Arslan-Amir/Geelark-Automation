@@ -210,8 +210,8 @@ def check_delivery_status(task_ids: list):
     print("Checking file delivery status...")
     print(f"{'='*50}")
 
-    print("⏳ Waiting 5 seconds for transfers to complete...")
-    time.sleep(5)
+    print("⏳ Waiting 60 seconds for transfers to complete...")
+    time.sleep(60)
 
     all_success = True
     for item in task_ids:

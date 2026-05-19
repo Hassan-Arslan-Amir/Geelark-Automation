@@ -45,30 +45,33 @@ def get_content_status(local_path: str) -> str:
 
 
 # ─────────────────────────────────────────
-# SEED: Populate devices table from deviceIDs.json
-# Runs automatically on first ever use (when table is empty)
+# SEED: Sync devices table from deviceIDs.json
+# Inserts new devices, skips existing ones (upsert by profile_id)
+# Safe to run on every pipeline start
 # ─────────────────────────────────────────
 def seed_devices():
     client = get_client()
-
-    existing = client.table("devices").select("id", count="exact").execute()
-    if existing.count and existing.count > 0:
-        print(f"✅ Devices table already seeded ({existing.count} devices found). Skipping.")
-        return
-
-    print("🌱 Seeding devices table from deviceIDs.json...")
 
     json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deviceIDs.json")
     with open(json_path, "r") as f:
         device_data = json.load(f)
 
-    rows = [
+    # Fetch profile_ids already in the table
+    existing_res  = client.table("devices").select("profile_id").execute()
+    existing_ids  = {row["profile_id"] for row in (existing_res.data or [])}
+
+    new_rows = [
         {"mobile": mobile, "profile_id": profile_id}
         for mobile, profile_id in device_data.items()
+        if profile_id not in existing_ids
     ]
 
-    client.table("devices").insert(rows).execute()
-    print(f"✅ Seeded {len(rows)} devices into Supabase.")
+    if not new_rows:
+        print(f"✅ Devices table up to date ({len(existing_ids)} devices). No new devices to add.")
+        return
+
+    client.table("devices").insert(new_rows).execute()
+    print(f"✅ Added {len(new_rows)} new device(s) to Supabase. Total in file: {len(device_data)}.")
 
 # ─────────────────────────────────────────
 # STEP 1: Create content record after download

@@ -44,7 +44,7 @@ def run_pipeline():
     if not local_file:
         print("\n⛔ Stopping — no new video available to upload.")
         return False
-    # local_file=r"E:\BitBash\GeelarkAutomation\getContent\ugc_videos\11-05-26 BuzzPatch\11-05-26 Buzz Meta V9-9-16.png"
+    # local_file=r"E:\BitBash\GeelarkAutomation\getContent\ugc_videos\16-05-26 Mosquito Kit\16-05-26 Mosquito Kit Camping Angle Mom 5.mp4"
 
     # Determine media type from file extension
     ext = os.path.splitext(local_file)[1].lower()
@@ -56,6 +56,11 @@ def run_pipeline():
         print(f"\n⛔ Unsupported file extension '{ext}' — cannot determine media type.")
         return False
 
+    # # --- For testing: use all devices from deviceIDs.json (no random selection) --- #
+    # selected_devices = {
+    #     "test_device_1": "613444666314523031",
+    #     "test_device_2": "613444666314457495",
+    # }
     # ── Random selection: 10 devices + 1 compatible platform ──────────────────
     selected_devices     = select_devices(10)               # {mobile: profile_id}
     selected_profile_ids = list(selected_devices.values())  # [profile_id, ...]
@@ -79,8 +84,18 @@ def run_pipeline():
         update_content_resource_url(content_id, resource_url)
 
     # Step 3: Generate caption using OpenAI Vision
+    # Caption length limits per platform
+    PLATFORM_CAPTION_LIMITS = {
+        "instagram": 2200,
+        "tiktok":    2200,
+        "facebook":  500,
+    }
     print("\n✍️  Generating caption with OpenAI...")
-    CAPTION = run_full_pipeline(media_path=local_file, media_type=media_type)
+    CAPTION = run_full_pipeline(
+        media_path = local_file,
+        media_type = media_type,
+        max_length = PLATFORM_CAPTION_LIMITS.get(platform, 2200),
+    )
 
     # Step 4: Post on the chosen platform using the selected devices
     print(f"\n📲 Scheduling {platform.upper()} post on {len(selected_devices)} devices...")

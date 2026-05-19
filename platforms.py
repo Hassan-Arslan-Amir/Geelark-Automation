@@ -19,9 +19,9 @@ PLATFORM_REGISTRY = {
     "tiktok": {
         "supports": ["video", "image"],
     },
-    # "facebook": {
-    #     "supports": ["video", "image"],
-    # },
+    "facebook": {
+        "supports": ["video"],
+    },
 }
 
 # ─────────────────────────────────────────
