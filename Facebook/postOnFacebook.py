@@ -16,9 +16,8 @@ APP_ID   = os.getenv("GEELARK_APP_ID")
 API_KEY  = os.getenv("GEELARK_API_KEY")
 BASE_URL = "https://openapi.geelark.com/open/v1"
 
-_json_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deviceIDs.json")
-with open(_json_path, "r") as _f:
-    _device_data = json.load(_f)
+from supabase_logger import get_all_devices as _get_all_devices
+_device_data       = _get_all_devices()
 PROFILE_IDS        = list(_device_data.values())
 PROFILE_MOBILE_MAP = {v: k for k, v in _device_data.items()}
 

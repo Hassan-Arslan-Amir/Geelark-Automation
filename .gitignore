@@ -37,3 +37,5 @@ Thumbs.db
 
 # Local generated docs
 prompts.md
+format.md
+deviceIDs.json

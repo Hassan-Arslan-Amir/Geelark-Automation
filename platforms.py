@@ -51,19 +51,18 @@ def select_platform(media_type: str) -> str:
 
 # ─────────────────────────────────────────
 # SELECT DEVICES
-# Randomly picks N devices from deviceIDs.json
+# Randomly picks N devices from Supabase
 # Returns dict of {mobile: profile_id}
 # ─────────────────────────────────────────
 def select_devices(count: int = DEVICES_PER_RUN) -> dict:
     """
-    Randomly select `count` devices from deviceIDs.json.
+    Randomly select `count` devices from Supabase.
 
     count   : Number of devices to select (default DEVICES_PER_RUN)
     Returns : dict of {mobile: profile_id} for selected devices
     """
-    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deviceIDs.json")
-    with open(json_path, "r") as f:
-        all_devices = json.load(f)
+    from supabase_logger import get_all_devices
+    all_devices = get_all_devices()
 
     items    = list(all_devices.items())
     selected = random.sample(items, min(count, len(items)))
