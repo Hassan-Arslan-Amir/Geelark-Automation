@@ -56,22 +56,46 @@ def seed_devices():
     with open(json_path, "r") as f:
         device_data = json.load(f)
 
-    # Fetch profile_ids already in the table
-    existing_res  = client.table("devices").select("profile_id").execute()
-    existing_ids  = {row["profile_id"] for row in (existing_res.data or [])}
+    # Fetch existing devices from table
+    existing_res = client.table("devices").select("profile_id, username").execute()
+    existing     = {row["profile_id"]: row["username"] for row in (existing_res.data or [])}
 
-    new_rows = [
-        {"mobile": mobile, "profile_id": profile_id}
-        for mobile, profile_id in device_data.items()
-        if profile_id not in existing_ids
-    ]
+    new_rows    = []
+    update_rows = []
 
-    if not new_rows:
-        print(f"✅ Devices table up to date ({len(existing_ids)} devices). No new devices to add.")
-        return
+    for mobile, info in device_data.items():
+        profile_id = info["profile_id"]
+        username   = info.get("username")
 
-    client.table("devices").insert(new_rows).execute()
-    print(f"✅ Added {len(new_rows)} new device(s) to Supabase. Total in file: {len(device_data)}.")
+        if profile_id not in existing:
+            new_rows.append({"mobile": mobile, "profile_id": profile_id, "username": username})
+        elif username and not existing[profile_id]:
+            # Already in DB but username was null — backfill it
+            update_rows.append({"profile_id": profile_id, "username": username})
+
+    if new_rows:
+        client.table("devices").insert(new_rows).execute()
+        print(f"✅ Added {len(new_rows)} new device(s) to Supabase.")
+
+    for row in update_rows:
+        client.table("devices") \
+            .update({"username": row["username"]}) \
+            .eq("profile_id", row["profile_id"]) \
+            .execute()
+
+    if update_rows:
+        print(f"✅ Updated username for {len(update_rows)} device(s).")
+
+    if not new_rows and not update_rows:
+        print(f"✅ Devices table up to date ({len(existing)} devices). No changes needed.")
+
+
+def get_all_devices() -> dict:
+    """Return all devices as {mobile: profile_id} from Supabase."""
+    client = get_client()
+    res = client.table("devices").select("mobile, profile_id").execute()
+    return {row["mobile"]: row["profile_id"] for row in (res.data or [])}
+
 
 # ─────────────────────────────────────────
 # STEP 1: Create content record after download

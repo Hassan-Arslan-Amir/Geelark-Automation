@@ -64,9 +64,10 @@ GeelarkAutomation/
 ├── createCaptions.py        ← OpenAI Vision caption generation
 ├── supabase_logger.py       ← All Supabase DB read/write operations
 ├── utils.py                 ← HTTP retry wrappers (api_post, api_put)
-├── deviceIDs.json           ← Master list: {mobile_number: geelark_profile_id} (48 devices)
+├── deviceIDs.json           ← Seed source only: {mobile_number: geelark_profile_id} — used once by seed_devices() to populate Supabase
 ├── schema.sql               ← Supabase DB schema (run once to set up tables)
 ├── getDeviceIds.py          ← One-time utility: fetch device IDs from GeeLark and write deviceIDs.json
+├── getStats.py              ← Stats fetcher: pulls all post metrics via HikerAPI for configured devices
 ├── .env                     ← API keys (never commit)
 │
 ├── getContent/
@@ -113,7 +114,7 @@ main.py → run_pipeline()                                                  │
     │    ├── VIDEO: .mp4 .mov .avi .mkv .webm                             │
     │    └── IMAGE: .jpg .jpeg .png .gif .webp                            │
     │                                                                     │
-    ├─ [SELECT] select_devices(10)    → random 10 from deviceIDs.json     │
+    ├─ [SELECT] select_devices(10)    → random 10 from Supabase           │
     ├─ [SELECT] select_platform()     → random platform supporting        │
     │                                   the detected media type           │
     │                                                                     │
@@ -184,7 +185,7 @@ main.py → run_pipeline()                                                  │
   - Active: `instagram`, `tiktok`
   - Commented out (stub exists): `facebook`
 - **`select_platform(media_type)`** — randomly picks one active platform that supports the given media type.
-- **`select_devices(count=10)`** — randomly samples `count` devices from `deviceIDs.json`.
+- **`select_devices(count=10)`** — randomly samples `count` devices from the Supabase `devices` table.
 - **To add a new platform:** Add an entry here AND implement the posting script.
 
 ---
@@ -223,14 +224,15 @@ main.py → run_pipeline()                                                  │
 - **Role:** All database operations. Every other module imports from here — nothing else touches Supabase directly.
 - **Functions:**
 
-| Function                                                  | When called               | What it writes                                                    |
-| --------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------- |
-| `seed_devices()`                                          | Pipeline boot (once ever) | Inserts all 48 devices from `deviceIDs.json` into `devices` table |
-| `get_content_status(local_path)`                          | Before download           | Returns `"not_found"` / `"not_posted"` / `"posted"`               |
-| `create_content_record(local_path, platform)`             | After download            | Inserts row in `content`, status=`"downloaded"`                   |
-| `update_content_resource_url(content_id, url)`            | After CDN upload          | Updates `resource_url`, status=`"uploaded"`                       |
-| `update_content_caption(content_id, caption, device_ids)` | After posting             | Updates `caption`, `device_ids`, status=`"posted"`                |
-| `increment_device_post_counts(profile_ids)`               | After posting             | Increments `no_of_posts` for each device that got a task          |
+| Function                                                  | When called               | What it writes                                                              |
+| --------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
+| `seed_devices()`                                          | Pipeline boot (once ever) | Inserts devices from `deviceIDs.json` into `devices` table (skips existing) |
+| `get_all_devices()`                                       | Module load (runtime)     | Returns all devices as `{mobile: profile_id}` from Supabase `devices` table |
+| `get_content_status(local_path)`                          | Before download           | Returns `"not_found"` / `"not_posted"` / `"posted"`                         |
+| `create_content_record(local_path, platform)`             | After download            | Inserts row in `content`, status=`"downloaded"`                             |
+| `update_content_resource_url(content_id, url)`            | After CDN upload          | Updates `resource_url`, status=`"uploaded"`                                 |
+| `update_content_caption(content_id, caption, device_ids)` | After posting             | Updates `caption`, `device_ids`, status=`"posted"`                          |
+| `increment_device_post_counts(profile_ids)`               | After posting             | Increments `no_of_posts` for each device that got a task                    |
 
 ---
 
@@ -302,9 +304,23 @@ main.py → run_pipeline()                                                  │
 ### `deviceIDs.json`
 
 - Format: `{ "mobile_number": "geelark_profile_id", ... }`
-- Contains **48 devices**.
-- Used by: `platforms.py` (random selection), `uploadContent.py` (fallback full list), all posting scripts (mobile↔profile_id mapping).
-- Generated by: `getDeviceIds.py` (run once to refresh from GeeLark API).
+- **Runtime role: none.** Only consumed by `seed_devices()` in `supabase_logger.py` for the initial one-time DB population.
+- All runtime device reads now go through `get_all_devices()` → Supabase `devices` table.
+- Generated/refreshed by: `getDeviceIds.py` (run once to pull latest from GeeLark API).
+
+---
+
+### `getStats.py`
+
+- **Role:** Fetches Instagram post metrics for configured devices via HikerAPI.
+- **External API:** HikerAPI (`hikerapi` Python client, token from `HIKER_ACCESS_KEY` in `.env`).
+- **Flow per device:**
+  1. `get_user_id(username)` — resolves Instagram username → numeric user ID (`user_by_username_v1`).
+  2. `get_all_posts(user_id)` — paginates through all posts via `user_medias_gql` (12 per page).
+  3. `get_post_stats(media_id)` — fetches per-post metrics via `media_info_by_id_v2` + `media_insight_v1`.
+- **Metrics collected:** views (`play_count`), likes, comments, reshares, reach, impressions, saves, media type, timestamp, permalink.
+- **Output:** prints a per-device summary table to console; saves full results to `instagram_stats.json`.
+- **Note:** Requires a funded HikerAPI account. Devices/usernames are currently hardcoded in the `DEVICES` list at the top of the file.
 
 ---
 
@@ -389,7 +405,7 @@ Each pipeline run picks **one random platform** from those compatible with the d
 
 ## 9. Device Management
 
-- Total devices: **48** (stored in `deviceIDs.json` and mirrored to Supabase `devices` table).
+- Total devices: stored in and read from Supabase `devices` table (source of truth). `deviceIDs.json` is only used for the initial one-time seeding via `seed_devices()`.
 - Devices per run: **10** (random sample, configurable via `DEVICES_PER_RUN` in `platforms.py`).
 - Device lifecycle per run:
   1. `start_all_devices()` — boots 10 phones, waits 120s.
@@ -429,6 +445,9 @@ OPENAI_API_KEY=
 # Supabase
 SUPABASE_URL=
 SUPABASE_KEY=
+
+# HikerAPI (Instagram stats)
+HIKER_ACCESS_KEY=
 ```
 
 ---

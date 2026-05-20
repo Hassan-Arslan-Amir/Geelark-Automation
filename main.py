@@ -56,7 +56,7 @@ def run_pipeline():
         print(f"\n⛔ Unsupported file extension '{ext}' — cannot determine media type.")
         return False
 
-    # # --- For testing: use all devices from deviceIDs.json (no random selection) --- #
+    # # --- For testing: use all devices from database (no random selection) --- #
     # selected_devices = {
     #     "test_device_1": "613444666314523031",
     #     "test_device_2": "613444666314457495",

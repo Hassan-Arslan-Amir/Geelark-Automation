@@ -8,9 +8,10 @@
 -- Pre-populated from deviceIDs.json via seed_devices() in supabase_logger.py
 CREATE TABLE IF NOT EXISTS devices (
     id          BIGSERIAL PRIMARY KEY,
-    mobile      TEXT NOT NULL UNIQUE,   -- Mobile number (e.g. "102")
-    profile_id  TEXT NOT NULL UNIQUE,   -- GeeLark profile ID
-    no_of_posts INTEGER DEFAULT 0,      -- Total posts scheduled on this device
+    mobile      TEXT NOT NULL UNIQUE,
+    profile_id  TEXT NOT NULL UNIQUE,
+    username    TEXT,                   -- Instagram/TikTok username on this device
+    no_of_posts INTEGER DEFAULT 0,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
