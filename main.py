@@ -3,7 +3,7 @@ import os
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "getContent"))
-from getContent import main as download_video
+from getContent import main as download_video, to_content_key
 from uploadContent import run as upload_to_devices, stop_all_devices
 from Instagram.postReelVideoOnInsta import post_reels_on_all_devices
 from Instagram.postReelImageOnInsta import post_images_on_all_devices
@@ -44,7 +44,7 @@ def run_pipeline():
     if not local_file:
         print("\n⛔ Stopping — no new video available to upload.")
         return False
-    # local_file=r"E:\BitBash\GeelarkAutomation\getContent\ugc_videos\16-05-26 Mosquito Kit\16-05-26 Mosquito Kit Camping Angle Mom 5.mp4"
+    # local_file=r"E:\BitBash\GeelarkAutomation\getContent\ugc_videos\11-05-26 BuzzPatch\11-05-26 Buzz Meta V9-9-16.png"
 
     # Determine media type from file extension
     ext = os.path.splitext(local_file)[1].lower()
@@ -56,19 +56,14 @@ def run_pipeline():
         print(f"\n⛔ Unsupported file extension '{ext}' — cannot determine media type.")
         return False
 
-    # # --- For testing: use all devices from database (no random selection) --- #
-    # selected_devices = {
-    #     "test_device_1": "613444666314523031",
-    #     "test_device_2": "613444666314457495",
-    # }
     # ── Random selection: 10 devices + 1 compatible platform ──────────────────
     selected_devices     = select_devices(10)               # {mobile: profile_id}
     selected_profile_ids = list(selected_devices.values())  # [profile_id, ...]
     platform             = select_platform(media_type)      # e.g. "instagram"
     print(f"\n🎯 This run: platform={platform.upper()}, devices={len(selected_devices)}, media={media_type}")
 
-    # Log Step 1 → create content record with local path + chosen platform
-    content_id = create_content_record(local_path=local_file, platform=platform)
+    # Log Step 1 → create content record with machine-independent key + chosen platform
+    content_id = create_content_record(local_path=to_content_key(local_file), platform=platform)
 
     # Step 2: Upload to GeeLark CDN and push file to selected devices only
     # Video  → auto_stop=True  (devices stopped after upload; video RPA is resilient to cold restart)
@@ -88,7 +83,7 @@ def run_pipeline():
     PLATFORM_CAPTION_LIMITS = {
         "instagram": 2200,
         "tiktok":    2200,
-        "facebook":  500,
+        "facebook":  200,
     }
     print("\n✍️  Generating caption with OpenAI...")
     CAPTION = run_full_pipeline(

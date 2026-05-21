@@ -26,13 +26,32 @@ def get_client() -> Client:
 #   "not_posted" → in DB but no device_ids  → download (was interrupted before posting)
 #   "posted"     → in DB and has device_ids → skip
 # ─────────────────────────────────────────
-def get_content_status(local_path: str) -> str:
+def get_content_status(content_key: str) -> str:
+    """Look up a content record by its machine-independent key (relative path, forward slashes).
+
+    Backward compatibility: if no exact match is found, falls back to a pattern
+    match against old records that stored full absolute paths.
+    """
     client = get_client()
 
+    # Primary: exact match on new relative-path key
     res = client.table("content") \
         .select("id, device_ids") \
-        .eq("local_path", local_path) \
+        .eq("local_path", content_key) \
         .execute()
+
+    if not res.data:
+        # Backward compat: old records stored full absolute paths that end with
+        # ugc_videos/<folder>/<file>.  Match using folder + filename wildcards so
+        # records from any machine (different drive letters / install paths) are found.
+        parts = content_key.split('/')
+        if len(parts) >= 2:
+            folder = parts[-2]
+            fname  = parts[-1]
+            res = client.table("content") \
+                .select("id, device_ids") \
+                .ilike("local_path", f"%{folder}%{fname}") \
+                .execute()
 
     if not res.data:
         return "not_found"
