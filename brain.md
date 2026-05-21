@@ -40,15 +40,16 @@ The whole pipeline repeats every 2 hours via `scheduler.py`.
 
 ## 2. Tech Stack & External Services
 
-| Layer        | Service / Library                              | Purpose                                                        |
-| ------------ | ---------------------------------------------- | -------------------------------------------------------------- |
-| Cloud Phones | **GeeLark** (`openapi.geelark.com/open/v1`)    | Runs Android cloud phones that actually post content           |
-| File Source  | **Google Drive API** (OAuth2)                  | Downloads today's content from a dated subfolder               |
-| AI Caption   | **OpenAI GPT-4o Vision**                       | Reads an image/frame and writes a platform-appropriate caption |
-| Database     | **Supabase** (PostgreSQL)                      | Tracks devices, content records, post counts                   |
-| Runtime      | **Python 3.x** (venv)                          | All scripts; dependencies in `venv/`                           |
-| Config       | **python-dotenv** (`.env`)                     | API keys and credentials                                       |
-| HTTP         | **requests** + custom `utils.py` retry wrapper | All outbound API calls                                         |
+| Layer        | Service / Library                               | Purpose                                                        |
+| ------------ | ----------------------------------------------- | -------------------------------------------------------------- |
+| Cloud Phones | **GeeLark** (`openapi.geelark.com/open/v1`)     | Runs Android cloud phones that actually post content           |
+| File Source  | **Google Drive API** (OAuth2)                   | Downloads today's content from a dated subfolder               |
+| AI Caption   | **OpenAI GPT-4o Vision**                        | Reads an image/frame and writes a platform-appropriate caption |
+| Database     | **Supabase** (PostgreSQL)                       | Tracks devices, content records, post counts                   |
+| Runtime      | **Python 3.x** (venv)                           | All scripts; dependencies in `venv/`                           |
+| Config       | **python-dotenv** (`.env`)                      | API keys and credentials                                       |
+| HTTP         | **requests** + custom `utils.py` retry wrapper  | All outbound API calls                                         |
+| Dashboard    | **React 18 + TypeScript + Vite + Tailwind CSS** | Analytics dashboard — visualises `getStats.py` output          |
 
 ---
 
@@ -64,7 +65,7 @@ GeelarkAutomation/
 ├── createCaptions.py        ← OpenAI Vision caption generation
 ├── supabase_logger.py       ← All Supabase DB read/write operations
 ├── utils.py                 ← HTTP retry wrappers (api_post, api_put)
-├── deviceIDs.json           ← Seed source only: {mobile_number: geelark_profile_id} — used once by seed_devices() to populate Supabase
+├── deviceIDs.json           ← Seed source: {mobile: {profile_id, username}} — used by seed_devices() to populate Supabase
 ├── schema.sql               ← Supabase DB schema (run once to set up tables)
 ├── getDeviceIds.py          ← One-time utility: fetch device IDs from GeeLark and write deviceIDs.json
 ├── getStats.py              ← Stats fetcher: pulls all post metrics via HikerAPI for configured devices
@@ -88,7 +89,19 @@ GeelarkAutomation/
 │   ├── __init__.py
 │   └── postOnFacebook.py    ← STUB — not yet implemented, prints "NOT YET IMPLEMENTED"
 │
-└── venv/                    ← Python virtual environment (not in git)
+├── venv/                    ← Python virtual environment (not in git)
+│
+└── Dashboard/               ← React/TypeScript analytics dashboard (Vite + Tailwind)
+    ├── src/
+    │   ├── App.tsx           ← Root component; manages screen routing and search state
+    │   ├── types.ts          ← TypeScript types: AnalyticsData, Account, Post, Stats
+    │   ├── data.json         ← Data source — copy instagram_stats.json here to view
+    │   └── components/
+    │       ├── Sidebar.tsx           ← Navigation sidebar (Devices / Posts screens)
+    │       ├── DevicesScreen.tsx     ← Per-device stats overview with search
+    │       ├── PostsScreen.tsx       ← All posts across devices with search
+    │       └── SearchBar.tsx         ← Reusable search by username / profile_id / mobile
+    └── package.json          ← npm project (React, lucide-react, @supabase/supabase-js)
 ```
 
 ---
@@ -224,15 +237,15 @@ main.py → run_pipeline()                                                  │
 - **Role:** All database operations. Every other module imports from here — nothing else touches Supabase directly.
 - **Functions:**
 
-| Function                                                  | When called               | What it writes                                                              |
-| --------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
-| `seed_devices()`                                          | Pipeline boot (once ever) | Inserts devices from `deviceIDs.json` into `devices` table (skips existing) |
-| `get_all_devices()`                                       | Module load (runtime)     | Returns all devices as `{mobile: profile_id}` from Supabase `devices` table |
-| `get_content_status(local_path)`                          | Before download           | Returns `"not_found"` / `"not_posted"` / `"posted"`                         |
-| `create_content_record(local_path, platform)`             | After download            | Inserts row in `content`, status=`"downloaded"`                             |
-| `update_content_resource_url(content_id, url)`            | After CDN upload          | Updates `resource_url`, status=`"uploaded"`                                 |
-| `update_content_caption(content_id, caption, device_ids)` | After posting             | Updates `caption`, `device_ids`, status=`"posted"`                          |
-| `increment_device_post_counts(profile_ids)`               | After posting             | Increments `no_of_posts` for each device that got a task                    |
+| Function                                                  | When called           | What it writes                                                                                                                         |
+| --------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `seed_devices()`                                          | Pipeline boot         | Inserts devices from `deviceIDs.json` (with `username`) into `devices` table; backfills `username` for existing rows where it was null |
+| `get_all_devices()`                                       | Module load (runtime) | Returns all devices as `{mobile: profile_id}` from Supabase `devices` table                                                            |
+| `get_content_status(local_path)`                          | Before download       | Returns `"not_found"` / `"not_posted"` / `"posted"`                                                                                    |
+| `create_content_record(local_path, platform)`             | After download        | Inserts row in `content`, status=`"downloaded"`                                                                                        |
+| `update_content_resource_url(content_id, url)`            | After CDN upload      | Updates `resource_url`, status=`"uploaded"`                                                                                            |
+| `update_content_caption(content_id, caption, device_ids)` | After posting         | Updates `caption`, `device_ids`, status=`"posted"`                                                                                     |
+| `increment_device_post_counts(profile_ids)`               | After posting         | Increments `no_of_posts` for each device that got a task                                                                               |
 
 ---
 
@@ -303,10 +316,24 @@ main.py → run_pipeline()                                                  │
 
 ### `deviceIDs.json`
 
-- Format: `{ "mobile_number": "geelark_profile_id", ... }`
-- **Runtime role: none.** Only consumed by `seed_devices()` in `supabase_logger.py` for the initial one-time DB population.
-- All runtime device reads now go through `get_all_devices()` → Supabase `devices` table.
+- Format: `{ "mobile_number": {"profile_id": "geelark_id", "username": "account_username"}, ... }`
+- All entries include a `username`. `seed_devices()` seeds the `username` column in Supabase and backfills it for any existing rows where it was previously null.
+- **Runtime role: none.** Only consumed by `seed_devices()` in `supabase_logger.py`.
+- All runtime device reads go through `get_all_devices()` → Supabase `devices` table.
 - Generated/refreshed by: `getDeviceIds.py` (run once to pull latest from GeeLark API).
+
+---
+
+### `Dashboard/`
+
+- **Role:** React/TypeScript analytics frontend. Reads `instagram_stats.json` (output of `getStats.py`) and displays per-device and per-post stats.
+- **Two screens:**
+  - **Devices** — card-based overview of each account: total views, likes, comments, post count. Click any device to drill into its posts.
+  - **Posts** — flat list of every post across all devices with full stats (views, likes, comments, reshares, reach, impressions, saves), media type badge, and Instagram permalink.
+- **Search:** both screens support filtering by `username`, `profile_id`, or `mobile` number.
+- **Data source:** `src/data.json` — copy `instagram_stats.json` here before running the dashboard.
+- **Stack:** React 18, TypeScript, Vite, Tailwind CSS, lucide-react icons.
+- **Run:** `cd Dashboard && npm install && npm run dev`
 
 ---
 
@@ -335,13 +362,14 @@ main.py → run_pipeline()                                                  │
 
 ### `devices` table
 
-| Column        | Type         | Description                                     |
-| ------------- | ------------ | ----------------------------------------------- |
-| `id`          | BIGSERIAL PK | Auto-increment                                  |
-| `mobile`      | TEXT UNIQUE  | Mobile number label (e.g. `"102"`)              |
-| `profile_id`  | TEXT UNIQUE  | GeeLark cloud phone profile ID                  |
-| `no_of_posts` | INTEGER      | Running total of posts scheduled on this device |
-| `created_at`  | TIMESTAMPTZ  | Row creation time                               |
+| Column        | Type         | Description                                                 |
+| ------------- | ------------ | ----------------------------------------------------------- |
+| `id`          | BIGSERIAL PK | Auto-increment                                              |
+| `mobile`      | TEXT UNIQUE  | Mobile number label (e.g. `"102"`)                          |
+| `profile_id`  | TEXT UNIQUE  | GeeLark cloud phone profile ID                              |
+| `username`    | TEXT         | Instagram/TikTok account username on this device (nullable) |
+| `no_of_posts` | INTEGER      | Running total of posts scheduled on this device             |
+| `created_at`  | TIMESTAMPTZ  | Row creation time                                           |
 
 ### `content` table
 
@@ -464,6 +492,12 @@ python main.py
 
 # Start the automated scheduler (runs every 2 hours forever)
 python scheduler.py
+
+# Run the analytics dashboard
+# (copy instagram_stats.json → Dashboard/src/data.json first)
+cd Dashboard
+npm install   # first time only
+npm run dev
 ```
 
 ---
