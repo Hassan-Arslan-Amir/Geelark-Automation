@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────
+# GeeLark Automation — Python Dependencies
+# Install with: pip install -r requirements.txt
+# ─────────────────────────────────────────
+
+# Database
+supabase==2.30.0
+
+# Environment / Config
+python-dotenv==1.2.2
+
+# HTTP
+requests==2.33.1
+httpx==0.28.1
+
+# Google Drive
+google-api-python-client==2.196.0
+google-auth-httplib2==0.4.0
+google-auth-oauthlib==1.4.0
+
+# AI Caption Generation
+openai==2.36.0
+
+# Video Frame Extraction
+opencv-python==4.13.0.92
+
+# Instagram Stats (HikerAPI)
+hikerapi==1.7.9
