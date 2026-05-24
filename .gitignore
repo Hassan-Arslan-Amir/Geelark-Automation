@@ -34,3 +34,9 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local generated docs
+prompts.md
+format.md
+deviceIDs.json
+instagram_stats.json

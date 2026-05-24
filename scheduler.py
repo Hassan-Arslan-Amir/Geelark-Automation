@@ -6,7 +6,7 @@ from main import run_pipeline
 # ─────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────
-INTERVAL_HOURS = 2      # How many hours between each run
+INTERVAL_HOURS = 1      # How many hours between each run
 
 # ─────────────────────────────────────────
 # SCHEDULER LOOP
@@ -49,7 +49,7 @@ def main():
         print("─" * 55)
 
         # Countdown until next run — updates every minute in-place
-        sleep_seconds = INTERVAL_HOURS * 3600
+        sleep_seconds = INTERVAL_HOURS * 1800
         remaining     = sleep_seconds
         while remaining > 0:
             mins, secs = divmod(remaining, 60)
