@@ -91,6 +91,13 @@ def sanitize_filename(file_name: str) -> str:
     return file_name
 
 
+def to_content_key(file_path: str) -> str:
+    """Return a machine-independent content key: path relative to ugc_videos/ with forward slashes.
+    Example: 'E:\\...\\ugc_videos\\21-05-26 Kit\\video.mp4' → '21-05-26 Kit/video.mp4'
+    """
+    return os.path.relpath(file_path, BASE_DOWNLOAD_DIR).replace('\\', '/')
+
+
 def download_file(service, file_id, file_name, download_path):
     """Download a single video file to the given path."""
     os.makedirs(download_path, exist_ok=True)
@@ -182,7 +189,7 @@ def main():
         for file in files:
             file_path = os.path.join(folder_download_path, sanitize_filename(file['name']))
 
-            status = get_content_status(file_path)
+            status = get_content_status(to_content_key(file_path))
 
             if status == "posted":
                 print(f"  ⏭  Skipping (already posted): {file['name']}")

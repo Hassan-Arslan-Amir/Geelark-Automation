@@ -3,7 +3,7 @@ import os
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "getContent"))
-from getContent import main as download_video
+from getContent import main as download_video, to_content_key
 from uploadContent import run as upload_to_devices, stop_all_devices
 from Instagram.postReelVideoOnInsta import post_reels_on_all_devices
 from Instagram.postReelImageOnInsta import post_images_on_all_devices
@@ -62,8 +62,8 @@ def run_pipeline():
     platform             = select_platform(media_type)      # e.g. "instagram"
     print(f"\n🎯 This run: platform={platform.upper()}, devices={len(selected_devices)}, media={media_type}")
 
-    # Log Step 1 → create content record with local path + chosen platform
-    content_id = create_content_record(local_path=local_file, platform=platform)
+    # Log Step 1 → create content record with machine-independent key + chosen platform
+    content_id = create_content_record(local_path=to_content_key(local_file), platform=platform)
 
     # Step 2: Upload to GeeLark CDN and push file to selected devices only
     # Video  → auto_stop=True  (devices stopped after upload; video RPA is resilient to cold restart)
@@ -79,8 +79,18 @@ def run_pipeline():
         update_content_resource_url(content_id, resource_url)
 
     # Step 3: Generate caption using OpenAI Vision
+    # Caption length limits per platform
+    PLATFORM_CAPTION_LIMITS = {
+        "instagram": 2200,
+        "tiktok":    2200,
+        "facebook":  200,
+    }
     print("\n✍️  Generating caption with OpenAI...")
-    CAPTION = run_full_pipeline(media_path=local_file, media_type=media_type)
+    CAPTION = run_full_pipeline(
+        media_path = local_file,
+        media_type = media_type,
+        max_length = PLATFORM_CAPTION_LIMITS.get(platform, 2200),
+    )
 
     # Step 4: Post on the chosen platform using the selected devices
     print(f"\n📲 Scheduling {platform.upper()} post on {len(selected_devices)} devices...")

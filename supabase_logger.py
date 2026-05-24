@@ -26,13 +26,32 @@ def get_client() -> Client:
 #   "not_posted" → in DB but no device_ids  → download (was interrupted before posting)
 #   "posted"     → in DB and has device_ids → skip
 # ─────────────────────────────────────────
-def get_content_status(local_path: str) -> str:
+def get_content_status(content_key: str) -> str:
+    """Look up a content record by its machine-independent key (relative path, forward slashes).
+
+    Backward compatibility: if no exact match is found, falls back to a pattern
+    match against old records that stored full absolute paths.
+    """
     client = get_client()
 
+    # Primary: exact match on new relative-path key
     res = client.table("content") \
         .select("id, device_ids") \
-        .eq("local_path", local_path) \
+        .eq("local_path", content_key) \
         .execute()
+
+    if not res.data:
+        # Backward compat: old records stored full absolute paths that end with
+        # ugc_videos/<folder>/<file>.  Match using folder + filename wildcards so
+        # records from any machine (different drive letters / install paths) are found.
+        parts = content_key.split('/')
+        if len(parts) >= 2:
+            folder = parts[-2]
+            fname  = parts[-1]
+            res = client.table("content") \
+                .select("id, device_ids") \
+                .ilike("local_path", f"%{folder}%{fname}") \
+                .execute()
 
     if not res.data:
         return "not_found"
@@ -45,30 +64,57 @@ def get_content_status(local_path: str) -> str:
 
 
 # ─────────────────────────────────────────
-# SEED: Populate devices table from deviceIDs.json
-# Runs automatically on first ever use (when table is empty)
+# SEED: Sync devices table from deviceIDs.json
+# Inserts new devices, skips existing ones (upsert by profile_id)
+# Safe to run on every pipeline start
 # ─────────────────────────────────────────
 def seed_devices():
     client = get_client()
-
-    existing = client.table("devices").select("id", count="exact").execute()
-    if existing.count and existing.count > 0:
-        print(f"✅ Devices table already seeded ({existing.count} devices found). Skipping.")
-        return
-
-    print("🌱 Seeding devices table from deviceIDs.json...")
 
     json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deviceIDs.json")
     with open(json_path, "r") as f:
         device_data = json.load(f)
 
-    rows = [
-        {"mobile": mobile, "profile_id": profile_id}
-        for mobile, profile_id in device_data.items()
-    ]
+    # Fetch existing devices from table
+    existing_res = client.table("devices").select("profile_id, username").execute()
+    existing     = {row["profile_id"]: row["username"] for row in (existing_res.data or [])}
 
-    client.table("devices").insert(rows).execute()
-    print(f"✅ Seeded {len(rows)} devices into Supabase.")
+    new_rows    = []
+    update_rows = []
+
+    for mobile, info in device_data.items():
+        profile_id = info["profile_id"]
+        username   = info.get("username")
+
+        if profile_id not in existing:
+            new_rows.append({"mobile": mobile, "profile_id": profile_id, "username": username})
+        elif username and not existing[profile_id]:
+            # Already in DB but username was null — backfill it
+            update_rows.append({"profile_id": profile_id, "username": username})
+
+    if new_rows:
+        client.table("devices").insert(new_rows).execute()
+        print(f"✅ Added {len(new_rows)} new device(s) to Supabase.")
+
+    for row in update_rows:
+        client.table("devices") \
+            .update({"username": row["username"]}) \
+            .eq("profile_id", row["profile_id"]) \
+            .execute()
+
+    if update_rows:
+        print(f"✅ Updated username for {len(update_rows)} device(s).")
+
+    if not new_rows and not update_rows:
+        print(f"✅ Devices table up to date ({len(existing)} devices). No changes needed.")
+
+
+def get_all_devices() -> dict:
+    """Return all devices as {mobile: profile_id} from Supabase."""
+    client = get_client()
+    res = client.table("devices").select("mobile, profile_id").execute()
+    return {row["mobile"]: row["profile_id"] for row in (res.data or [])}
+
 
 # ─────────────────────────────────────────
 # STEP 1: Create content record after download
