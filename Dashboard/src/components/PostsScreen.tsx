@@ -98,15 +98,6 @@ export function PostsScreen({
           <p className="text-surface-500 mt-1 text-sm">{getActiveFilterLabel()}</p>
         </div>
 
-        <div className="mb-6 lg:mb-8 w-full sm:max-w-xl">
-          <SearchBar
-            category={searchCategory}
-            query={searchQuery}
-            onCategoryChange={onSearchCategoryChange}
-            onQueryChange={onSearchQueryChange}
-          />
-        </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 lg:mb-8 animate-fade-in">
           <div className="bg-surface-0 rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-card">
             <div className="flex items-center gap-3">
@@ -141,6 +132,15 @@ export function PostsScreen({
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="mb-6 lg:mb-8 w-full sm:max-w-xl">
+          <SearchBar
+            category={searchCategory}
+            query={searchQuery}
+            onCategoryChange={onSearchCategoryChange}
+            onQueryChange={onSearchQueryChange}
+          />
         </div>
 
         {filteredPosts.length === 0 ? (

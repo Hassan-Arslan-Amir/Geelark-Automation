@@ -1,6 +1,6 @@
 import { SearchBar } from './SearchBar';
 import { Account } from '../types';
-import { Eye, ChevronRight, Smartphone, Hash, User } from 'lucide-react';
+import { Eye, Heart, MessageCircle, ChevronRight, Smartphone, Hash, User } from 'lucide-react';
 
 interface DevicesScreenProps {
   accounts: Account[];
@@ -46,6 +46,10 @@ export function DevicesScreen({
     })
     .sort((a, b) => totalViews(b) - totalViews(a));
 
+  const totalFilteredViews    = filteredAccounts.reduce((sum, a) => sum + totalViews(a), 0);
+  const totalFilteredLikes    = filteredAccounts.reduce((sum, a) => sum + totalLikes(a), 0);
+  const totalFilteredComments = filteredAccounts.reduce((sum, a) => sum + totalComments(a), 0);
+
   return (
     <div className="lg:ml-[272px] min-h-screen bg-surface-50 pt-14 lg:pt-0">
       <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
@@ -54,6 +58,42 @@ export function DevicesScreen({
           <p className="text-surface-500 mt-1 text-sm">
             {filteredAccounts.length} device{filteredAccounts.length !== 1 ? 's' : ''} found
           </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 lg:mb-8 animate-fade-in">
+          <div className="bg-surface-0 rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-card">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
+                <Eye size={16} className="text-brand-600 sm:w-[18px] sm:h-[18px]" />
+              </div>
+              <div>
+                <p className="text-[10px] sm:text-[11px] text-surface-400 font-medium uppercase tracking-wider">Total Views</p>
+                <p className="text-xl sm:text-2xl font-bold text-surface-900">{totalFilteredViews.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-surface-0 rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-card">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 flex items-center justify-center flex-shrink-0">
+                <Heart size={16} className="text-rose-500 sm:w-[18px] sm:h-[18px]" />
+              </div>
+              <div>
+                <p className="text-[10px] sm:text-[11px] text-surface-400 font-medium uppercase tracking-wider">Total Likes</p>
+                <p className="text-xl sm:text-2xl font-bold text-surface-900">{totalFilteredLikes.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-surface-0 rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-card">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-teal-50 flex items-center justify-center flex-shrink-0">
+                <MessageCircle size={16} className="text-teal-600 sm:w-[18px] sm:h-[18px]" />
+              </div>
+              <div>
+                <p className="text-[10px] sm:text-[11px] text-surface-400 font-medium uppercase tracking-wider">Total Comments</p>
+                <p className="text-xl sm:text-2xl font-bold text-surface-900">{totalFilteredComments.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mb-6 lg:mb-8 w-full sm:max-w-xl">
