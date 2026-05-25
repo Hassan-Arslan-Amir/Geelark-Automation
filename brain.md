@@ -68,7 +68,7 @@ GeelarkAutomation/
 ├── deviceIDs.json           ← Seed source: {mobile: {profile_id, username}} — used by seed_devices() to populate Supabase
 ├── schema.sql               ← Supabase DB schema (run once to set up tables)
 ├── getDeviceIds.py          ← One-time utility: fetch device IDs from GeeLark and write deviceIDs.json
-├── getStats.py              ← Stats fetcher: pulls all post metrics via HikerAPI for configured devices
+├── getStats.py              ← Stats fetcher: pulls post metrics via HikerAPI for all devices in DB; writes to Supabase stats table + instagram_stats.json
 ├── .env                     ← API keys (never commit)
 │
 ├── getContent/
@@ -92,10 +92,16 @@ GeelarkAutomation/
 ├── venv/                    ← Python virtual environment (not in git)
 │
 └── Dashboard/               ← React/TypeScript analytics dashboard (Vite + Tailwind)
+    ├── brain.md              ← Dashboard-specific brain document (detailed component reference)
+    ├── .env                  ← REQUIRED: VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
     ├── src/
     │   ├── App.tsx           ← Root component; manages screen routing and search state
     │   ├── types.ts          ← TypeScript types: AnalyticsData, Account, Post, Stats
-    │   ├── data.json         ← Data source — copy instagram_stats.json here to view
+    │   ├── data.json         ← Legacy static file — no longer used; kept for reference
+    │   ├── lib/
+    │   │   └── supabase.ts   ← Supabase client singleton (null-safe if .env missing)
+    │   ├── hooks/
+    │   │   └── useSupabaseData.ts ← Fetches devices + stats from Supabase, builds Account[]
     │   └── components/
     │       ├── Sidebar.tsx           ← Navigation sidebar (Devices / Posts screens)
     │       ├── DevicesScreen.tsx     ← Per-device stats overview with search
@@ -237,15 +243,18 @@ main.py → run_pipeline()                                                  │
 - **Role:** All database operations. Every other module imports from here — nothing else touches Supabase directly.
 - **Functions:**
 
-| Function                                                  | When called           | What it writes                                                                                                                         |
-| --------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `seed_devices()`                                          | Pipeline boot         | Inserts devices from `deviceIDs.json` (with `username`) into `devices` table; backfills `username` for existing rows where it was null |
-| `get_all_devices()`                                       | Module load (runtime) | Returns all devices as `{mobile: profile_id}` from Supabase `devices` table                                                            |
-| `get_content_status(local_path)`                          | Before download       | Returns `"not_found"` / `"not_posted"` / `"posted"`                                                                                    |
-| `create_content_record(local_path, platform)`             | After download        | Inserts row in `content`, status=`"downloaded"`                                                                                        |
-| `update_content_resource_url(content_id, url)`            | After CDN upload      | Updates `resource_url`, status=`"uploaded"`                                                                                            |
-| `update_content_caption(content_id, caption, device_ids)` | After posting         | Updates `caption`, `device_ids`, status=`"posted"`                                                                                     |
-| `increment_device_post_counts(profile_ids)`               | After posting         | Increments `no_of_posts` for each device that got a task                                                                               |
+| Function                                                           | When called      | What it writes                                                                                                                                               |
+| ------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `seed_devices()`                                                   | Pipeline boot    | Inserts devices from `deviceIDs.json` (with `username`) into `devices` table; backfills `username` for existing rows where it was null                       |
+| `get_all_devices()`                                                | Pipeline runtime | Returns all devices as `{mobile: profile_id}` from Supabase `devices` table                                                                                  |
+| `get_all_devices_full()`                                           | `getStats.py`    | Returns `[{id, mobile, profile_id, username}]` filtered to rows where `username IS NOT NULL` — used instead of a hardcoded device list                       |
+| `get_content_status(content_key)`                                  | Before download  | Returns `"not_found"` / `"not_posted"` / `"posted"`. Exact match on relative key first; falls back to ILIKE for old absolute-path records                    |
+| `create_content_record(local_path, platform)`                      | After download   | Inserts row in `content`, status=`"downloaded"`                                                                                                              |
+| `update_content_resource_url(content_id, url)`                     | After CDN upload | Updates `resource_url`, status=`"uploaded"`                                                                                                                  |
+| `update_content_caption(content_id, caption, device_ids)`          | After posting    | Updates `caption`, `device_ids`, status=`"posted"`                                                                                                           |
+| `increment_device_post_counts(profile_ids)`                        | After posting    | Increments `no_of_posts` for each device that got a task                                                                                                     |
+| `upsert_post_stats(device_id, username, posts)`                    | `getStats.py`    | Upserts per-post rows into the `stats` table. Conflict key: `permalink` → overwrites with latest values. Converts Unix timestamp to ISO via `_unix_to_iso()` |
+| `update_device_aggregate_stats(device_id, views, likes, comments)` | `getStats.py`    | Overwrites `views`, `likes`, `comments` aggregate columns on the matching `devices` row                                                                      |
 
 ---
 
@@ -326,28 +335,36 @@ main.py → run_pipeline()                                                  │
 
 ### `Dashboard/`
 
-- **Role:** React/TypeScript analytics frontend. Reads `instagram_stats.json` (output of `getStats.py`) and displays per-device and per-post stats.
+- **Role:** React/TypeScript analytics frontend. Reads **live data directly from Supabase** (`devices` + `stats` tables) and displays per-device and per-post stats.
 - **Two screens:**
   - **Devices** — card-based overview of each account: total views, likes, comments, post count. Click any device to drill into its posts.
   - **Posts** — flat list of every post across all devices with full stats (views, likes, comments, reshares, reach, impressions, saves), media type badge, and Instagram permalink.
 - **Search:** both screens support filtering by `username`, `profile_id`, or `mobile` number.
-- **Data source:** `src/data.json` — copy `instagram_stats.json` here before running the dashboard.
+- **Data source:** Supabase — requires `Dashboard/.env` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. If the file is missing, the app shows a clear error screen instead of a blank page.
+- **Data flow:** `useSupabaseData` hook fetches `devices` + `stats` on mount → groups stats by `device_id` → assembles `Account[]` → computes aggregate totals.
+- **`data.json`** — legacy static file left from before the Supabase migration. Not imported anywhere; safe to delete.
 - **Stack:** React 18, TypeScript, Vite, Tailwind CSS, lucide-react icons.
+- **Detailed reference:** see `Dashboard/brain.md` for component-level documentation.
 - **Run:** `cd Dashboard && npm install && npm run dev`
 
 ---
 
 ### `getStats.py`
 
-- **Role:** Fetches Instagram post metrics for configured devices via HikerAPI.
+- **Role:** Fetches Instagram post metrics for every device in the Supabase `devices` table via HikerAPI; writes results to both Supabase and a local JSON file.
 - **External API:** HikerAPI (`hikerapi` Python client, token from `HIKER_ACCESS_KEY` in `.env`).
+- **Device source:** calls `get_all_devices_full()` — reads all devices with a non-null `username` from Supabase. **No hardcoded device list.**
 - **Flow per device:**
   1. `get_user_id(username)` — resolves Instagram username → numeric user ID (`user_by_username_v1`).
   2. `get_all_posts(user_id)` — paginates through all posts via `user_medias_gql` (12 per page).
   3. `get_post_stats(media_id)` — fetches per-post metrics via `media_info_by_id_v2` + `media_insight_v1`.
 - **Metrics collected:** views (`play_count`), likes, comments, reshares, reach, impressions, saves, media type, timestamp, permalink.
-- **Output:** prints a per-device summary table to console; saves full results to `instagram_stats.json`.
-- **Note:** Requires a funded HikerAPI account. Devices/usernames are currently hardcoded in the `DEVICES` list at the top of the file.
+- **DB writes (per device, after all its posts are processed):**
+  - `upsert_post_stats(device_id, username, posts)` → upserts rows into `stats` table (conflict key: `permalink`).
+  - `update_device_aggregate_stats(device_id, views, likes, comments)` → overwrites the aggregate columns on the `devices` row.
+- **JSON output:** `_save_json()` writes `instagram_stats.json` **after every device** (not just at the end) so progress is never lost if the run is interrupted.
+- **Problem device tracking:** devices where HikerAPI returns no user ID are logged as `🔴 Username Not Found`; devices with a valid account but zero posts are logged as `🟡 No Posts Found`. A summary of both lists is printed at the end.
+- **Note:** Requires a funded HikerAPI account. Rate limit protection: 1-second sleep between devices, 0.5-second sleep between pagination pages.
 
 ---
 
@@ -362,14 +379,17 @@ main.py → run_pipeline()                                                  │
 
 ### `devices` table
 
-| Column        | Type         | Description                                                 |
-| ------------- | ------------ | ----------------------------------------------------------- |
-| `id`          | BIGSERIAL PK | Auto-increment                                              |
-| `mobile`      | TEXT UNIQUE  | Mobile number label (e.g. `"102"`)                          |
-| `profile_id`  | TEXT UNIQUE  | GeeLark cloud phone profile ID                              |
-| `username`    | TEXT         | Instagram/TikTok account username on this device (nullable) |
-| `no_of_posts` | INTEGER      | Running total of posts scheduled on this device             |
-| `created_at`  | TIMESTAMPTZ  | Row creation time                                           |
+| Column        | Type         | Description                                                         |
+| ------------- | ------------ | ------------------------------------------------------------------- |
+| `id`          | BIGSERIAL PK | Auto-increment                                                      |
+| `mobile`      | TEXT UNIQUE  | Mobile number label (e.g. `"102"`)                                  |
+| `profile_id`  | TEXT UNIQUE  | GeeLark cloud phone profile ID                                      |
+| `username`    | TEXT         | Instagram/TikTok account username on this device (nullable)         |
+| `no_of_posts` | INTEGER      | Running total of posts scheduled on this device                     |
+| `views`       | INTEGER      | Aggregate total views across all posts — overwritten by getStats    |
+| `likes`       | INTEGER      | Aggregate total likes across all posts — overwritten by getStats    |
+| `comments`    | INTEGER      | Aggregate total comments across all posts — overwritten by getStats |
+| `created_at`  | TIMESTAMPTZ  | Row creation time                                                   |
 
 ### `content` table
 
@@ -383,6 +403,27 @@ main.py → run_pipeline()                                                  │
 | `platform`     | TEXT         | `"instagram"` / `"tiktok"` / `"facebook"`         |
 | `device_ids`   | JSONB        | Array of profile IDs that received a post task    |
 | `status`       | TEXT         | `"downloaded"` → `"uploaded"` → `"posted"`        |
+
+### `stats` table
+
+| Column        | Type         | Description                                                                      |
+| ------------- | ------------ | -------------------------------------------------------------------------------- |
+| `id`          | BIGSERIAL PK | Auto-increment                                                                   |
+| `device_id`   | INTEGER (FK) | References `devices.id`                                                          |
+| `username`    | TEXT         | Denormalised Instagram handle (for quick lookup without a join)                  |
+| `permalink`   | TEXT UNIQUE  | Full Instagram post URL — used as the upsert conflict key                        |
+| `media_type`  | INTEGER      | `1` = photo, `2` = video/reel (Instagram enum)                                   |
+| `views`       | INTEGER      | Play count (reels) or view count (photos)                                        |
+| `likes`       | INTEGER      |                                                                                  |
+| `comments`    | INTEGER      |                                                                                  |
+| `reshares`    | INTEGER      |                                                                                  |
+| `reach`       | INTEGER      | From `media_insight_v1` (only available for owned accounts)                      |
+| `impressions` | INTEGER      | From `media_insight_v1`                                                          |
+| `saves`       | INTEGER      | From `media_insight_v1`                                                          |
+| `posted_at`   | TIMESTAMPTZ  | Original post time — converted from Instagram Unix timestamp by `_unix_to_iso()` |
+| `fetched_at`  | TIMESTAMPTZ  | Timestamp of the last `getStats.py` run that wrote this row                      |
+
+> **Write pattern:** `getStats.py` upserts into this table on every run (conflict on `permalink` → overwrite). The Dashboard reads from this table live via Supabase.
 
 ---
 
@@ -494,7 +535,9 @@ python main.py
 python scheduler.py
 
 # Run the analytics dashboard
-# (copy instagram_stats.json → Dashboard/src/data.json first)
+# Requires Dashboard/.env — create it first:
+#   VITE_SUPABASE_URL=https://your-project.supabase.co
+#   VITE_SUPABASE_ANON_KEY=your-anon-public-key  (from Supabase Dashboard → Settings → API)
 cd Dashboard
 npm install   # first time only
 npm run dev
