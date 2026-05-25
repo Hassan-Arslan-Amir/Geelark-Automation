@@ -1,6 +1,6 @@
 import os
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -197,3 +197,76 @@ def increment_device_post_counts(profile_ids: list):
         success += 1
 
     print(f"✅ Updated post counts for {success}/{len(profile_ids)} devices.")
+
+
+# ─────────────────────────────────────────
+# STATS: Return all devices that have a username
+# Used by getStats.py instead of a hardcoded list
+# ─────────────────────────────────────────
+def get_all_devices_full() -> list:
+    """Return all devices with a username as a list of {id, mobile, profile_id, username}."""
+    client = get_client()
+    res = client.table("devices").select("id, mobile, profile_id, username").execute()
+    return [row for row in (res.data or []) if row.get("username")]
+
+
+# ─────────────────────────────────────────
+# STATS: Upsert per-post stats into the stats table
+# On permalink conflict → overwrite with latest values
+# ─────────────────────────────────────────
+def _unix_to_iso(value) -> str | None:
+    """Convert an Instagram Unix timestamp (int or str) to an ISO 8601 string.
+    Returns None if the value is missing or invalid.
+    """
+    if value is None or value == "--":
+        return None
+    try:
+        return datetime.fromtimestamp(int(value), tz=timezone.utc).isoformat()
+    except (ValueError, OSError, TypeError):
+        return None
+
+
+def upsert_post_stats(device_id: int, username: str, posts: list) -> None:
+    """Upsert per-post stat rows. 'posts' is a list of {permalink, stats} dicts."""
+    client = get_client()
+
+    rows = []
+    for post in posts:
+        s = post.get("stats", {})
+        permalink = s.get("permalink")
+        if not permalink:
+            continue
+
+        rows.append({
+            "device_id":   device_id,
+            "username":    username,
+            "permalink":   permalink,
+            "media_type":  s.get("media_type"),
+            "views":       s.get("views", 0),
+            "likes":       s.get("likes", 0),
+            "comments":    s.get("comments", 0),
+            "reshares":    s.get("reshares", 0),
+            "reach":       s.get("reach", 0),
+            "impressions": s.get("impressions", 0),
+            "saves":       s.get("saves", 0),
+            "posted_at":   _unix_to_iso(s.get("timestamp")),
+            "fetched_at":  datetime.now(timezone.utc).isoformat(),
+        })
+
+    if rows:
+        client.table("stats").upsert(rows, on_conflict="permalink").execute()
+        print(f"   ✅ Upserted {len(rows)} post stat(s) to Supabase for @{username}")
+
+
+# ─────────────────────────────────────────
+# STATS: Overwrite aggregate stat columns on a device row
+# Called after each device's posts are fully processed
+# ─────────────────────────────────────────
+def update_device_aggregate_stats(device_id: int, views: int, likes: int, comments: int) -> None:
+    """Overwrite views/likes/comments totals on the devices row."""
+    client = get_client()
+    client.table("devices").update({
+        "views":    views,
+        "likes":    likes,
+        "comments": comments,
+    }).eq("id", device_id).execute()

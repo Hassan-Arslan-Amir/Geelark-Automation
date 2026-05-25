@@ -26,12 +26,6 @@ export function DevicesScreen({
     return '';
   };
 
-  const filteredAccounts = accounts.filter((account) => {
-    if (!searchQuery) return true;
-    const fieldValue = getFieldValue(account, searchCategory).toLowerCase();
-    return fieldValue.includes(searchQuery.toLowerCase());
-  });
-
   const totalViews = (account: Account): number => {
     return account.posts.reduce((sum, post) => sum + post.stats.views, 0);
   };
@@ -43,6 +37,14 @@ export function DevicesScreen({
   const totalComments = (account: Account): number => {
     return account.posts.reduce((sum, post) => sum + post.stats.comments, 0);
   };
+
+  const filteredAccounts = accounts
+    .filter((account) => {
+      if (!searchQuery) return true;
+      const fieldValue = getFieldValue(account, searchCategory).toLowerCase();
+      return fieldValue.includes(searchQuery.toLowerCase());
+    })
+    .sort((a, b) => totalViews(b) - totalViews(a));
 
   return (
     <div className="lg:ml-[272px] min-h-screen bg-surface-50 pt-14 lg:pt-0">

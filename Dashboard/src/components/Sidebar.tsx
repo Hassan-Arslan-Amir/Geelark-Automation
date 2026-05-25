@@ -1,4 +1,4 @@
-import { Smartphone, BarChart3, Instagram, X, Menu } from 'lucide-react';
+import { Smartphone, BarChart3, X, Menu } from 'lucide-react';
 
 interface SidebarProps {
   currentScreen: 'devices' | 'posts';
@@ -25,8 +25,8 @@ export function Sidebar({ currentScreen, onNavigate, isOpen, onToggle }: Sidebar
       {/* Mobile header bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-surface-950 z-50 flex items-center justify-between px-4 shadow-sidebar">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-            <Instagram size={16} className="text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center overflow-hidden">
+            <img src="/assets/browser_icon_2.png" alt="Analytics" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-base font-bold text-white tracking-tight">Analytics</h1>
         </div>
@@ -54,9 +54,9 @@ export function Sidebar({ currentScreen, onNavigate, isOpen, onToggle }: Sidebar
       >
         <div className="px-6 pt-8 pb-6">
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-500/20">
-              <Instagram size={20} className="text-white" />
-            </div>
+            <div className="w-8 h-8 rounded-lg from-brand-500 to-brand-700 flex items-center justify-center overflow-hidden">
+              <img src="/assets/browser_icon_2.png" alt="Analytics" className="w-full h-full object-cover" />
+          </div>
             <div>
               <h1 className="text-lg font-bold tracking-tight">Analytics</h1>
               <p className="text-[11px] text-surface-400 font-medium tracking-wider uppercase">Dashboard</p>
@@ -92,13 +92,13 @@ export function Sidebar({ currentScreen, onNavigate, isOpen, onToggle }: Sidebar
           </ul>
         </nav>
 
-        <div className="px-4 pb-4">
+        {/* <div className="px-4 pb-4">
           <div className="h-px bg-surface-800 mb-4" />
           <div className="px-3 py-3 rounded-lg bg-surface-900/60 border border-surface-800/50">
             <p className="text-[11px] text-surface-500 font-medium">Data refreshed</p>
             <p className="text-xs text-surface-300 font-medium mt-0.5">May 19, 2026</p>
           </div>
-        </div>
+        </div> */}
       </aside>
     </>
   );
