@@ -1,21 +1,22 @@
 import os
+import sys
 import json
 import time
 from hikerapi import Client
 from dotenv import load_dotenv
 from datetime import datetime
 
+# Allow importing supabase_logger from the parent directory
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from supabase_logger import get_all_devices_full, upsert_post_stats, update_device_aggregate_stats
+
 load_dotenv()
+
 
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
 cl = Client(token=os.getenv("HIKER_ACCESS_KEY"))
-
-DEVICES = [
-    {"profile_id": "613444917972173207", "mobile": "Phone 102",  "username": "stephenchaney13"},
-    {"profile_id": "613444913962418583", "mobile": "Phone 101",  "username": "philipgonzalez523"}
-]
 
 # ─────────────────────────────────────────
 # STEP 1: Get User ID from Username
@@ -95,34 +96,58 @@ def get_post_stats(media_id: str) -> dict:
         return {}
 
 # ─────────────────────────────────────────
-# MAIN: Get stats from ALL 48 devices
+# HELPER: Write current results to instagram_stats.json
+# ─────────────────────────────────────────
+def _save_json(results: list, total_views: int, total_likes: int, total_comments: int):
+    output = {
+        "fetched_at":    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_devices": len(results),
+        "aggregate": {
+            "total_views":    total_views,
+            "total_likes":    total_likes,
+            "total_comments": total_comments,
+        },
+        "accounts": results,
+    }
+    with open("instagram_stats.json", "w") as f:
+        json.dump(output, f, indent=2)
+
+
+# ─────────────────────────────────────────
+# MAIN: Get stats from ALL devices
 # ─────────────────────────────────────────
 def get_all_devices_stats() -> list:
     """
     Fetch Instagram stats for ALL posts on each device.
-    Auto-fetches by username — no post URLs needed.
+    Devices are loaded from Supabase — no hardcoded list needed.
     """
+    devices = get_all_devices_full()
+
     print(f"\n{'='*60}")
-    print(f"📊 Fetching Instagram stats from {len(DEVICES)} devices...")
+    print(f"📊 Fetching Instagram stats from {len(devices)} devices...")
     print(f"   Powered by: HikerAPI")
     print(f"{'='*60}")
 
-    results     = []
-    total_views = 0
-    total_likes = 0
+    results        = []
+    total_views    = 0
+    total_likes    = 0
     total_comments = 0
+    no_user_devices  = []   # username not found on HikerAPI
+    no_post_devices  = []   # account exists but has no posts
 
-    for i, device in enumerate(DEVICES, 1):
-        print(f"\n[{i}/{len(DEVICES)}] {device['mobile']} | @{device['username']}")
+    for i, device in enumerate(devices, 1):
+        print(f"\n[{i}/{len(devices)}] {device['mobile']} | @{device['username']}")
 
         try:
             user_id = get_user_id(device["username"])
             if not user_id:
+                no_user_devices.append(device)
                 continue
 
             posts = get_all_posts(user_id)
             if not posts:
                 print(f"   ⚠️  No posts found.")
+                no_post_devices.append(device)
                 continue
             print(f"   📂 Total posts found: {len(posts)}")
 
@@ -132,6 +157,10 @@ def get_all_devices_stats() -> list:
                 "username":   device["username"],
                 "posts":      [],
             }
+
+            device_views    = 0
+            device_likes    = 0
+            device_comments = 0
 
             for j, post in enumerate(posts, 1):
                 media_id = str(post.get("pk") or post.get("id"))
@@ -148,6 +177,9 @@ def get_all_devices_stats() -> list:
                 total_views    += views
                 total_likes    += likes
                 total_comments += comments
+                device_views    += views
+                device_likes    += likes
+                device_comments += comments
 
                 print(f"   📌 Post {j}: {stats.get('permalink', '--')}")
                 print(f"      👁️  Views    : {views:,}")
@@ -164,6 +196,12 @@ def get_all_devices_stats() -> list:
 
             if device_result["posts"]:
                 results.append(device_result)
+                # Write stats to Supabase
+                upsert_post_stats(device["id"], device["username"], device_result["posts"])
+                update_device_aggregate_stats(device["id"], device_views, device_likes, device_comments)
+                # Update JSON after each device
+                _save_json(results, total_views, total_likes, total_comments)
+                print(f"   💾 JSON updated ({len(results)} device(s) so far)")
 
         except Exception as e:
             print(f"   ❌ Error: {e}")
@@ -179,20 +217,28 @@ def get_all_devices_stats() -> list:
     print(f"   💬 Total Comments : {total_comments:,}")
     print(f"   📊 Avg Views/Device: {total_views // max(len(results), 1):,}")
 
-    # ── Save to JSON ──────────────────────
-    output = {
-        "fetched_at":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "total_devices":  len(results),
-        "aggregate": {
-            "total_views":    total_views,
-            "total_likes":    total_likes,
-            "total_comments": total_comments,
-        },
-        "accounts": results
-    }
-    with open("instagram_stats.json", "w") as f:
-        json.dump(output, f, indent=2)
     print(f"\n✅ Full stats saved to instagram_stats.json")
+
+    # ── Problem Devices Summary ─────────────
+    print(f"\n{'='*60}")
+    print(f"⚠️  PROBLEM DEVICES SUMMARY")
+    print(f"{'='*60}")
+
+    print(f"\n🔴 Username Not Found ({len(no_user_devices)} device(s)):")
+    if no_user_devices:
+        for d in no_user_devices:
+            print(f"   • {d['mobile']} | @{d['username']}")
+    else:
+        print(f"   None")
+
+    print(f"\n🟡 No Posts Found ({len(no_post_devices)} device(s)):")
+    if no_post_devices:
+        for d in no_post_devices:
+            print(f"   • {d['mobile']} | @{d['username']}")
+    else:
+        print(f"   None")
+
+    print(f"{'='*60}")
 
     return results
 

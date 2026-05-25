@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { DevicesScreen } from './components/DevicesScreen';
 import { PostsScreen } from './components/PostsScreen';
-import { AnalyticsData, Account } from './types';
-import data from './data.json';
+import { Account } from './types';
+import { useSupabaseData } from './hooks/useSupabaseData';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<'devices' | 'posts'>('devices');
@@ -16,7 +16,7 @@ function App() {
   const [postsSearchCategory, setPostsSearchCategory] = useState<'username' | 'profile_id' | 'mobile'>('username');
   const [postsSearchQuery, setPostsSearchQuery] = useState('');
 
-  const analyticsData = data as AnalyticsData;
+  const { data: analyticsData, loading, error } = useSupabaseData();
 
   const handleDeviceClick = (account: Account) => {
     setSelectedDevice(account);
@@ -35,6 +35,29 @@ function App() {
     }
     setCurrentScreen(screen);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-surface-50">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-surface-500 text-sm font-medium">Loading data from Supabase…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !analyticsData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-surface-50">
+        <div className="text-center max-w-sm px-6">
+          <p className="text-red-500 font-semibold text-base mb-2">Failed to load data</p>
+          <p className="text-surface-400 text-sm">{error ?? 'Unknown error'}</p>
+          <p className="text-surface-400 text-xs mt-3">Check that VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in Dashboard/.env</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex">
@@ -69,3 +92,4 @@ function App() {
 }
 
 export default App;
+

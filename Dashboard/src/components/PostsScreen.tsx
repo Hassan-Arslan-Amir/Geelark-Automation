@@ -23,7 +23,6 @@ export function PostsScreen({
   accounts,
   searchCategory,
   searchQuery,
-  selectedDevice,
   onSearchCategoryChange,
   onSearchQueryChange,
 }: PostsScreenProps) {
@@ -49,11 +48,13 @@ export function PostsScreen({
 
   const allPosts = getAllPosts();
 
-  const filteredPosts = allPosts.filter((post) => {
-    if (!searchQuery) return true;
-    const fieldValue = getFieldValue(post, searchCategory).toLowerCase();
-    return fieldValue.includes(searchQuery.toLowerCase());
-  });
+  const filteredPosts = allPosts
+    .filter((post) => {
+      if (!searchQuery) return true;
+      const fieldValue = getFieldValue(post, searchCategory).toLowerCase();
+      return fieldValue.includes(searchQuery.toLowerCase());
+    })
+    .sort((a, b) => b.stats.views - a.stats.views);
 
   const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp * 1000);

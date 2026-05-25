@@ -29,8 +29,34 @@ CREATE TABLE IF NOT EXISTS content (
     platform     TEXT DEFAULT 'instagram',
     device_ids   JSONB,                 -- JSON array of selected device profile IDs
     status       TEXT DEFAULT 'downloaded', -- Progress: downloaded → uploaded → posted
-    created_at   TIMESTAMPTZ DEFAULT NOW()
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    views        INTEGER DEFAULT 0,
+    likes        INTEGER DEFAULT 0,
+    comments     INTEGER DEFAULT 0,
 );
 
 -- Disable Row Level Security (private automation script — no public access)
 ALTER TABLE content DISABLE ROW LEVEL SECURITY;
+
+-- Table: stats
+-- Stores per-post Instagram stats fetched via HikerAPI.
+-- One row per post; upserted on each getStats.py run (permalink is unique key).
+CREATE TABLE IF NOT EXISTS stats (
+    id          BIGSERIAL PRIMARY KEY,
+    device_id   BIGINT REFERENCES devices(id),
+    username    TEXT,
+    permalink   TEXT UNIQUE,            -- unique per post; used as upsert key
+    media_type  INTEGER,                -- 1=photo, 2=video/reel
+    views       INTEGER DEFAULT 0,
+    likes       INTEGER DEFAULT 0,
+    comments    INTEGER DEFAULT 0,
+    reshares    INTEGER DEFAULT 0,
+    reach       INTEGER DEFAULT 0,
+    impressions INTEGER DEFAULT 0,
+    saves       INTEGER DEFAULT 0,
+    posted_at   TIMESTAMPTZ,            -- Instagram's taken_at timestamp
+    fetched_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Disable Row Level Security (private automation script — no public access)
+ALTER TABLE stats DISABLE ROW LEVEL SECURITY;
