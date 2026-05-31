@@ -11,6 +11,7 @@ from TikTok.postOnTikTok import post_videos_on_devices as tiktok_post_videos
 from TikTok.postOnTikTok import post_images_on_devices as tiktok_post_images
 from Facebook.postOnFacebook import post_videos_on_devices as facebook_post_videos
 from Facebook.postOnFacebook import post_images_on_devices as facebook_post_images
+from YouTube.postOnYouTube import post_shorts_on_devices as youtube_post_videos
 from createCaptions import run_full_pipeline
 from platforms import select_platform, select_devices
 from supabase_logger import seed_devices, create_content_record, update_content_resource_url, update_content_caption, increment_device_post_counts
@@ -44,7 +45,7 @@ def run_pipeline():
     if not local_file:
         print("\n⛔ Stopping — no new video available to upload.")
         return False
-    # local_file=r"E:\BitBash\GeelarkAutomation\getContent\ugc_videos\11-05-26 BuzzPatch\11-05-26 Buzz Meta V9-9-16.png"
+    # local_file=r"E:\BitBash\GeelarkAutomation\getContent\ugc_videos\25-05-26 Entomologist\25-06-26 Entomologist - Black Man - Car.mp4"
 
     # Determine media type from file extension
     ext = os.path.splitext(local_file)[1].lower()
@@ -56,6 +57,10 @@ def run_pipeline():
         print(f"\n⛔ Unsupported file extension '{ext}' — cannot determine media type.")
         return False
 
+    # selected_devices     = {
+    #     "test_device_1": "613444962649899427",
+    #     "test_device_2": "613444917972173207",
+    # }
     # ── Random selection: 10 devices + 1 compatible platform ──────────────────
     selected_devices     = select_devices(10)               # {mobile: profile_id}
     selected_profile_ids = list(selected_devices.values())  # [profile_id, ...]
@@ -84,6 +89,7 @@ def run_pipeline():
         "instagram": 2200,
         "tiktok":    2200,
         "facebook":  200,
+        "youtube":   100,
     }
     print("\n✍️  Generating caption with OpenAI...")
     CAPTION = run_full_pipeline(
@@ -137,6 +143,13 @@ def run_pipeline():
                 profile_ids = selected_devices,
             )
 
+    elif platform == "youtube":
+        if media_type == "video":
+            results = youtube_post_videos(
+                video_url  = resource_url,
+                title     = CAPTION,
+                profile_ids = selected_devices,
+            )
     else:
         print(f"\n⛔ Unknown platform '{platform}' — no posting action taken.")
         results = []
