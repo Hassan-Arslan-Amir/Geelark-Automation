@@ -22,6 +22,9 @@ PLATFORM_REGISTRY = {
     "facebook": {
         "supports": ["video"],
     },
+    "youtube": {
+        "supports": ["video"],
+    },
 }
 
 # ─────────────────────────────────────────
