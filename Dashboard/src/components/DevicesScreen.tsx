@@ -1,5 +1,8 @@
+import { useMemo } from 'react';
 import { SearchBar } from './SearchBar';
+import { Pagination } from './Pagination';
 import { Account } from '../types';
+import { usePagination } from '../hooks/usePagination';
 import { Eye, Heart, MessageCircle, ChevronRight, Smartphone, Hash, User } from 'lucide-react';
 
 interface DevicesScreenProps {
@@ -38,13 +41,29 @@ export function DevicesScreen({
     return account.posts.reduce((sum, post) => sum + post.stats.comments, 0);
   };
 
-  const filteredAccounts = accounts
-    .filter((account) => {
-      if (!searchQuery) return true;
-      const fieldValue = getFieldValue(account, searchCategory).toLowerCase();
-      return fieldValue.includes(searchQuery.toLowerCase());
-    })
-    .sort((a, b) => totalViews(b) - totalViews(a));
+  const filteredAccounts = useMemo(
+    () =>
+      accounts
+        .filter((account) => {
+          if (!searchQuery) return true;
+          const fieldValue = getFieldValue(account, searchCategory).toLowerCase();
+          return fieldValue.includes(searchQuery.toLowerCase());
+        })
+        .sort((a, b) => totalViews(b) - totalViews(a)),
+    [accounts, searchQuery, searchCategory],
+  );
+
+  const {
+    paginatedItems: paginatedAccounts,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    rangeStart,
+    rangeEnd,
+  } = usePagination(filteredAccounts, [searchQuery, searchCategory]);
 
   const totalFilteredViews    = filteredAccounts.reduce((sum, a) => sum + totalViews(a), 0);
   const totalFilteredLikes    = filteredAccounts.reduce((sum, a) => sum + totalLikes(a), 0);
@@ -114,8 +133,9 @@ export function DevicesScreen({
             <p className="text-surface-400 text-sm mt-1">Try adjusting your search criteria.</p>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            {filteredAccounts.map((account, idx) => (
+            {paginatedAccounts.map((account, idx) => (
               <button
                 key={account.profile_id}
                 onClick={() => onDeviceClick(account)}
@@ -178,6 +198,18 @@ export function DevicesScreen({
               </button>
             ))}
           </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+          </>
         )}
       </div>
     </div>

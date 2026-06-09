@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { DevicesScreen } from './components/DevicesScreen';
 import { PostsScreen } from './components/PostsScreen';
-import { Account } from './types';
+import { SchedulePostScreen } from './components/SchedulePostScreen';
+import { Account, ScreenId } from './types';
 import { useSupabaseData } from './hooks/useSupabaseData';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<'devices' | 'posts'>('devices');
+  const [currentScreen, setCurrentScreen] = useState<ScreenId>('devices');
   const [selectedDevice, setSelectedDevice] = useState<Account | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -25,7 +26,7 @@ function App() {
     setCurrentScreen('posts');
   };
 
-  const handleNavigate = (screen: 'devices' | 'posts') => {
+  const handleNavigate = (screen: ScreenId) => {
     if (screen === 'devices') {
       setSelectedDevice(null);
       setPostsSearchQuery('');
@@ -68,7 +69,7 @@ function App() {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      {currentScreen === 'devices' ? (
+      {currentScreen === 'devices' && (
         <DevicesScreen
           accounts={analyticsData.accounts}
           searchCategory={devicesSearchCategory}
@@ -77,7 +78,9 @@ function App() {
           onSearchQueryChange={setDevicesSearchQuery}
           onDeviceClick={handleDeviceClick}
         />
-      ) : (
+      )}
+
+      {currentScreen === 'posts' && (
         <PostsScreen
           accounts={analyticsData.accounts}
           searchCategory={postsSearchCategory}
@@ -87,9 +90,12 @@ function App() {
           onSearchQueryChange={setPostsSearchQuery}
         />
       )}
+
+      {currentScreen === 'schedule' && (
+        <SchedulePostScreen accounts={analyticsData.accounts} />
+      )}
     </div>
   );
 }
 
 export default App;
-

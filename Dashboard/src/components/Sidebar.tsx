@@ -1,19 +1,21 @@
-import { Smartphone, BarChart3, X, Menu } from 'lucide-react';
+import { Smartphone, BarChart3, CalendarClock, X, Menu } from 'lucide-react';
+import { ScreenId } from '../types';
 
 interface SidebarProps {
-  currentScreen: 'devices' | 'posts';
-  onNavigate: (screen: 'devices' | 'posts') => void;
+  currentScreen: ScreenId;
+  onNavigate: (screen: ScreenId) => void;
   isOpen: boolean;
   onToggle: () => void;
 }
 
 export function Sidebar({ currentScreen, onNavigate, isOpen, onToggle }: SidebarProps) {
   const items = [
-    { id: 'devices', label: 'Devices', icon: Smartphone },
-    { id: 'posts', label: 'Posts', icon: BarChart3 },
+    { id: 'devices' as const, label: 'Devices', icon: Smartphone },
+    { id: 'posts' as const, label: 'Posts', icon: BarChart3 },
+    { id: 'schedule' as const, label: 'Schedule Post', icon: CalendarClock },
   ];
 
-  const handleNav = (screen: 'devices' | 'posts') => {
+  const handleNav = (screen: ScreenId) => {
     onNavigate(screen);
     if (window.innerWidth < 1024) {
       onToggle();
@@ -74,7 +76,7 @@ export function Sidebar({ currentScreen, onNavigate, isOpen, onToggle }: Sidebar
             {items.map(({ id, label, icon: Icon }) => (
               <li key={id}>
                 <button
-                  onClick={() => handleNav(id as 'devices' | 'posts')}
+                  onClick={() => handleNav(id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                     currentScreen === id
                       ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/25'
@@ -91,14 +93,6 @@ export function Sidebar({ currentScreen, onNavigate, isOpen, onToggle }: Sidebar
             ))}
           </ul>
         </nav>
-
-        {/* <div className="px-4 pb-4">
-          <div className="h-px bg-surface-800 mb-4" />
-          <div className="px-3 py-3 rounded-lg bg-surface-900/60 border border-surface-800/50">
-            <p className="text-[11px] text-surface-500 font-medium">Data refreshed</p>
-            <p className="text-xs text-surface-300 font-medium mt-0.5">May 19, 2026</p>
-          </div>
-        </div> */}
       </aside>
     </>
   );

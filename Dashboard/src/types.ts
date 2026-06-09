@@ -32,3 +32,14 @@ export interface AnalyticsData {
   };
   accounts: Account[];
 }
+
+export type ScreenId = 'devices' | 'posts' | 'schedule';
+
+export interface ScheduledPostPayload {
+  platform: string;
+  media_type: string;
+  resource_url: string;
+  caption: string;
+  device_ids: Record<string, string>;
+  schedule_at: string;
+}

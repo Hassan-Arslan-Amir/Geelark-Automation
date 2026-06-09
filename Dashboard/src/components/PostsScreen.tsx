@@ -1,5 +1,8 @@
+import { useMemo } from 'react';
 import { SearchBar } from './SearchBar';
+import { Pagination } from './Pagination';
 import { Account, Post } from '../types';
+import { usePagination } from '../hooks/usePagination';
 import { Eye, Heart, MessageCircle, ExternalLink, Film, Image, BarChart3 } from 'lucide-react';
 
 interface PostsScreenProps {
@@ -46,15 +49,28 @@ export function PostsScreen({
     return '';
   };
 
-  const allPosts = getAllPosts();
+  const filteredPosts = useMemo(() => {
+    const allPosts = getAllPosts();
+    return allPosts
+      .filter((post) => {
+        if (!searchQuery) return true;
+        const fieldValue = getFieldValue(post, searchCategory).toLowerCase();
+        return fieldValue.includes(searchQuery.toLowerCase());
+      })
+      .sort((a, b) => b.stats.views - a.stats.views);
+  }, [accounts, searchQuery, searchCategory]);
 
-  const filteredPosts = allPosts
-    .filter((post) => {
-      if (!searchQuery) return true;
-      const fieldValue = getFieldValue(post, searchCategory).toLowerCase();
-      return fieldValue.includes(searchQuery.toLowerCase());
-    })
-    .sort((a, b) => b.stats.views - a.stats.views);
+  const {
+    paginatedItems: paginatedPosts,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    rangeStart,
+    rangeEnd,
+  } = usePagination(filteredPosts, [searchQuery, searchCategory]);
 
   const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp * 1000);
@@ -152,8 +168,9 @@ export function PostsScreen({
             <p className="text-surface-400 text-sm mt-1">Try adjusting your search criteria.</p>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            {filteredPosts.map((post, idx) => (
+            {paginatedPosts.map((post, idx) => (
               <button
                 key={`${post.account.profile_id}-${idx}`}
                 onClick={() => window.open(post.permalink, '_blank')}
@@ -223,6 +240,18 @@ export function PostsScreen({
               </button>
             ))}
           </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+          </>
         )}
       </div>
     </div>

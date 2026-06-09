@@ -60,3 +60,21 @@ CREATE TABLE IF NOT EXISTS stats (
 
 -- Disable Row Level Security (private automation script — no public access)
 ALTER TABLE stats DISABLE ROW LEVEL SECURITY;
+
+-- Table: scheduled_posts
+-- User-scheduled posts created from the Dashboard Schedule Post screen.
+-- A Python worker can poll pending rows and dispatch GeeLark tasks.
+CREATE TABLE IF NOT EXISTS scheduled_posts (
+    id           BIGSERIAL PRIMARY KEY,
+    platform     TEXT NOT NULL,
+    media_type   TEXT NOT NULL DEFAULT 'video',
+    resource_url TEXT NOT NULL,
+    caption      TEXT,
+    device_ids   JSONB NOT NULL,          -- {mobile: profile_id}
+    schedule_at  TIMESTAMPTZ NOT NULL,
+    status       TEXT DEFAULT 'pending',  -- pending | posted | failed
+    error        TEXT,
+    created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE scheduled_posts DISABLE ROW LEVEL SECURITY;

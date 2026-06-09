@@ -33,20 +33,22 @@ export function useSupabaseData() {
       }
 
       try {
-        // ── 1. Fetch all devices that have a username ──────────────────────
-        const { data: devices, error: devicesError } = await supabase
-          .from('devices')
-          .select('id, mobile, profile_id, username')
-          .not('username', 'is', null);
+        // ── 1 & 2. Fetch devices and stats in parallel ─────────────────────
+        const [devicesResult, statsResult] = await Promise.all([
+          supabase
+            .from('devices')
+            .select('id, mobile, profile_id, username')
+            .not('username', 'is', null),
+          supabase
+            .from('stats')
+            .select('device_id, permalink, media_type, views, likes, comments, reshares, reach, impressions, saves, posted_at'),
+        ]);
 
-        if (devicesError) throw devicesError;
+        if (devicesResult.error) throw devicesResult.error;
+        if (statsResult.error) throw statsResult.error;
 
-        // ── 2. Fetch all post stats ────────────────────────────────────────
-        const { data: stats, error: statsError } = await supabase
-          .from('stats')
-          .select('device_id, permalink, media_type, views, likes, comments, reshares, reach, impressions, saves, posted_at');
-
-        if (statsError) throw statsError;
+        const devices = devicesResult.data;
+        const stats = statsResult.data;
 
         // ── 3. Group stats rows by device_id ──────────────────────────────
         type StatRow = NonNullable<typeof stats>[number];
