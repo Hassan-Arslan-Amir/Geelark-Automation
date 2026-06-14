@@ -62,19 +62,42 @@ CREATE TABLE IF NOT EXISTS stats (
 ALTER TABLE stats DISABLE ROW LEVEL SECURITY;
 
 -- Table: scheduled_posts
--- User-scheduled posts created from the Dashboard Schedule Post screen.
--- A Python worker can poll pending rows and dispatch GeeLark tasks.
+-- Posting tasks created from the Dashboard Schedule Post screen.
+-- A Python worker polls pending rows and pulls content from Google Drive.
 CREATE TABLE IF NOT EXISTS scheduled_posts (
-    id           BIGSERIAL PRIMARY KEY,
-    platform     TEXT NOT NULL,
-    media_type   TEXT NOT NULL DEFAULT 'video',
-    resource_url TEXT NOT NULL,
-    caption      TEXT,
-    device_ids   JSONB NOT NULL,          -- {mobile: profile_id}
-    schedule_at  TIMESTAMPTZ NOT NULL,
-    status       TEXT DEFAULT 'pending',  -- pending | posted | failed
-    error        TEXT,
-    created_at   TIMESTAMPTZ DEFAULT NOW()
+    id             BIGSERIAL PRIMARY KEY,
+    platform       TEXT NOT NULL,
+    media_type     TEXT NOT NULL DEFAULT 'video',
+    content_count  INTEGER NOT NULL DEFAULT 1,
+    device_ids     JSONB NOT NULL,            -- {mobile: profile_id}
+    schedule_mode  TEXT NOT NULL DEFAULT 'auto',  -- auto | manual
+    schedule_duration TEXT NOT NULL DEFAULT 'day', -- day | week | month
+    schedule_times JSONB,                         -- ISO timestamps, one per content item (manual)
+    schedule_at    TIMESTAMPTZ,                   -- first post time (manual); null when auto
+    posts_completed INTEGER NOT NULL DEFAULT 0,   -- how many schedule slots have been executed
+    caption_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    caption_prompt  TEXT,
+    status         TEXT DEFAULT 'pending',    -- pending | running | completed | failed
+    error          TEXT,
+    created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
+
 ALTER TABLE scheduled_posts DISABLE ROW LEVEL SECURITY;
+
+-- Table: bot_settings
+-- Singleton row (id = 1) for Dashboard Settings screen.
+-- Stores Google Drive source URL, OpenAI key, and GeeLark API credentials.
+CREATE TABLE IF NOT EXISTS bot_settings (
+    id                   INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    google_drive_url     TEXT,
+    openai_api_key       TEXT,
+    geelark_app_id       TEXT,
+    geelark_api_key      TEXT,
+    geelark_bearer_token TEXT,
+    updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO bot_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE bot_settings DISABLE ROW LEVEL SECURITY;

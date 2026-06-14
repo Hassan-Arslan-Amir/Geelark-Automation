@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { SearchBar } from './SearchBar';
 import { Pagination } from './Pagination';
 import { Account } from '../types';
 import { usePagination } from '../hooks/usePagination';
-import { Eye, Heart, MessageCircle, ChevronRight, Smartphone, Hash, User } from 'lucide-react';
+import { syncDevicesFromGeelark } from '../hooks/useSyncDevices';
+import { useAutoDismiss } from '../hooks/useAutoDismiss';
+import { Eye, Heart, MessageCircle, ChevronRight, Smartphone, Hash, User, RefreshCw, Loader2 } from 'lucide-react';
 
 interface DevicesScreenProps {
   accounts: Account[];
@@ -12,6 +14,7 @@ interface DevicesScreenProps {
   onSearchCategoryChange: (category: 'username' | 'profile_id' | 'mobile') => void;
   onSearchQueryChange: (query: string) => void;
   onDeviceClick: (account: Account) => void;
+  onRefreshDevices: () => Promise<void>;
 }
 
 export function DevicesScreen({
@@ -21,7 +24,36 @@ export function DevicesScreen({
   onSearchCategoryChange,
   onSearchQueryChange,
   onDeviceClick,
+  onRefreshDevices,
 }: DevicesScreenProps) {
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSyncDevices = async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await syncDevicesFromGeelark();
+      await onRefreshDevices();
+      setSyncMessage({
+        type: 'success',
+        text: result.message ?? `Synced ${result.total_in_json ?? 0} device(s) from GeeLark.`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to sync devices.';
+      setSyncMessage({
+        type: 'error',
+        text: message.includes('fetch')
+          ? `${message} Make sure the API server is running (python api_server.py).`
+          : message,
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  useAutoDismiss(syncMessage, () => setSyncMessage(null));
+
   const getFieldValue = (account: Account, category: string): string => {
     if (category === 'username') return account.username;
     if (category === 'profile_id') return account.profile_id;
@@ -72,12 +104,44 @@ export function DevicesScreen({
   return (
     <div className="lg:ml-[272px] min-h-screen bg-surface-50 pt-14 lg:pt-0">
       <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-        <div className="mb-6 lg:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-surface-900 tracking-tight">Devices</h1>
-          <p className="text-surface-500 mt-1 text-sm">
-            {filteredAccounts.length} device{filteredAccounts.length !== 1 ? 's' : ''} found
-          </p>
+        <div className="mb-6 lg:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-surface-900 tracking-tight">Devices</h1>
+            <p className="text-surface-500 mt-1 text-sm">
+              {filteredAccounts.length} device{filteredAccounts.length !== 1 ? 's' : ''} found
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSyncDevices}
+            disabled={syncing}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-brand-600/25 transition-colors"
+          >
+            {syncing ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Syncing from GeeLark…
+              </>
+            ) : (
+              <>
+                <RefreshCw size={16} />
+                Sync devices
+              </>
+            )}
+          </button>
         </div>
+
+        {syncMessage && (
+          <div
+            className={`mb-6 rounded-xl px-4 py-3 text-sm font-medium border ${
+              syncMessage.type === 'success'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-red-50 text-red-700 border-red-200'
+            }`}
+          >
+            {syncMessage.text}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 lg:mb-8 animate-fade-in">
           <div className="bg-surface-0 rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-card">

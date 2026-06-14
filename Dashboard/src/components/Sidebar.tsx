@@ -1,4 +1,4 @@
-import { Smartphone, BarChart3, CalendarClock, X, Menu } from 'lucide-react';
+import { Smartphone, BarChart3, ListTodo, CalendarClock, Settings, X, Menu } from 'lucide-react';
 import { ScreenId } from '../types';
 
 interface SidebarProps {
@@ -12,7 +12,9 @@ export function Sidebar({ currentScreen, onNavigate, isOpen, onToggle }: Sidebar
   const items = [
     { id: 'devices' as const, label: 'Devices', icon: Smartphone },
     { id: 'posts' as const, label: 'Posts', icon: BarChart3 },
+    { id: 'tasks' as const, label: 'Tasks', icon: ListTodo },
     { id: 'schedule' as const, label: 'Schedule Post', icon: CalendarClock },
+    { id: 'settings' as const, label: 'Settings', icon: Settings },
   ];
 
   const handleNav = (screen: ScreenId) => {

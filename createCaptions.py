@@ -9,7 +9,14 @@ import io
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+_default_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+def _get_openai_client(api_key: str | None = None) -> OpenAI:
+    key = (api_key or os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise ValueError("OpenAI API key is not configured.")
+    return OpenAI(api_key=key)
 
 # ─────────────────────────────────────────
 # HELPER: Convert image file to base64
@@ -62,7 +69,8 @@ def generate_caption_from_image(
     include_hashtags: bool = True,
     language:        str = "English",
     custom_prompt:   str = None,
-    max_length:      int = 2200
+    max_length:      int = 2200,
+    openai_api_key:  str = None,
 ) -> str:
     """
     Sends image to GPT-4o and gets an Instagram caption back.
@@ -97,6 +105,7 @@ Requirements:
 
     print(f"✍️  Generating caption (tone: {tone}, hashtags: {include_hashtags})...")
 
+    client = _get_openai_client(openai_api_key)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -133,6 +142,7 @@ def generate_caption_for_image(
     language:        str  = "English",
     custom_prompt:   str  = None,
     max_length:      int  = 2200,
+    openai_api_key:  str  = None,
 ) -> str:
     """
     Generate an Instagram caption for an image file.
@@ -151,6 +161,7 @@ def generate_caption_for_image(
         language         = language,
         custom_prompt    = custom_prompt,
         max_length       = max_length,
+        openai_api_key   = openai_api_key,
     )
 
     print(f"\n📝 Generated Caption:\n{'-'*40}\n{caption}\n{'-'*40}")
@@ -167,6 +178,7 @@ def generate_caption_for_video(
     language:        str  = "English",
     custom_prompt:   str  = None,
     max_length:      int  = 2200,
+    openai_api_key:  str  = None,
 ) -> str:
     """
     Generate an Instagram caption for a video file.
@@ -186,6 +198,7 @@ def generate_caption_for_video(
         language         = language,
         custom_prompt    = custom_prompt,
         max_length       = max_length,
+        openai_api_key   = openai_api_key,
     )
 
     print(f"\n📝 Generated Caption:\n{'-'*40}\n{caption}\n{'-'*40}")
@@ -327,7 +340,9 @@ def run_full_pipeline(
     include_hashtags: bool = True,
     language:        str  = "English",
     custom_caption:  str  = None,
+    custom_prompt:   str  = None,
     max_length:      int  = 2200,
+    openai_api_key:  str  = None,
 ):
     """
     Complete pipeline:
@@ -350,7 +365,9 @@ def run_full_pipeline(
             tone             = tone,
             include_hashtags = include_hashtags,
             language         = language,
+            custom_prompt    = custom_prompt,
             max_length       = max_length,
+            openai_api_key   = openai_api_key,
         )
     elif media_type == "video":
         caption = generate_caption_for_video(
@@ -358,7 +375,9 @@ def run_full_pipeline(
             tone             = tone,
             include_hashtags = include_hashtags,
             language         = language,
+            custom_prompt    = custom_prompt,
             max_length       = max_length,
+            openai_api_key   = openai_api_key,
         )
     else:
         raise ValueError("media_type must be 'video' or 'image'")

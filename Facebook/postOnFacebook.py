@@ -9,11 +9,8 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import api_post
+from geelark_config import build_geelark_headers
 
-load_dotenv()
-
-APP_ID   = os.getenv("GEELARK_APP_ID")
-API_KEY  = os.getenv("GEELARK_API_KEY")
 BASE_URL = "https://openapi.geelark.com/open/v1"
 
 from supabase_logger import get_all_devices as _get_all_devices
@@ -41,19 +38,7 @@ def get_schedule_after_hours(hours: int) -> int:
 # AUTH HEADERS
 # ─────────────────────────────────────────
 def get_headers():
-    trace_id = str(uuid.uuid4()).upper()
-    ts       = str(int(time.time() * 1000))
-    nonce    = trace_id[:6]
-    raw_str  = f"{APP_ID}{trace_id}{ts}{nonce}{API_KEY}"
-    sign     = hashlib.sha256(raw_str.encode("utf-8")).hexdigest().upper()
-    return {
-        "appId":        APP_ID,
-        "traceId":      trace_id,
-        "ts":           ts,
-        "nonce":        nonce,
-        "sign":         sign,
-        "Content-Type": "application/json"
-    }
+    return build_geelark_headers()
 
 # ─────────────────────────────────────────
 # CORE: Post Reel on ONE device
@@ -129,6 +114,7 @@ def post_videos_on_devices(
     profile_ids:     dict = None,   # {mobile: profile_id}
     schedule_at:     int  = None,   # Fixed time for all (None = now+60s per device)
     stagger_minutes: int  = 0,      # Gap between each device
+    stagger_seconds: int  = 0,
 ) -> list:
     """
     Post a Facebook Reel on each selected device.
@@ -150,7 +136,9 @@ def post_videos_on_devices(
     print(f"📘 Facebook — Posting Reel on {len(device_list)} device(s)")
     print(f"   Video           : {video_url}")
     print(f"   Caption         : {caption[:80]}{'...' if len(caption) > 80 else ''}")
-    print(f"   Stagger interval: {stagger_minutes} min(s) between devices")
+    stagger = stagger_seconds if stagger_seconds else stagger_minutes * 60
+    stagger_label = f"{stagger_seconds}s" if stagger_seconds else f"{stagger_minutes} min(s)"
+    print(f"   Stagger interval: {stagger_label} between devices")
     print(f"{'='*55}")
 
     results = []
@@ -158,9 +146,9 @@ def post_videos_on_devices(
     for i, (profile_id, mobile) in enumerate(device_list):
         # Timestamp computed fresh each iteration — avoids stale schedule on long loops
         device_schedule = (
-            schedule_at + (i * stagger_minutes * 60)
+            schedule_at + (i * stagger)
             if schedule_at
-            else int(time.time()) + 60 + (i * stagger_minutes * 60)
+            else int(time.time()) + 60 + (i * stagger)
         )
         readable_time = datetime.fromtimestamp(device_schedule).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -193,6 +181,7 @@ def post_images_on_devices(
     profile_ids:     dict = None,
     schedule_at:     int  = None,
     stagger_minutes: int  = 0,
+    stagger_seconds: int  = 0,
 ) -> list:
     """
     🚧 NOT YET IMPLEMENTED — No GeeLark API endpoint documented

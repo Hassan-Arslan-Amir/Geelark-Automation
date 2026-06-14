@@ -2,20 +2,9 @@ import sys
 import requests
 import time
 import os
-import uuid
-import hashlib
 import json
-from dotenv import load_dotenv
+from geelark_config import build_geelark_headers, require_geelark_credentials
 from utils import api_post, api_put
-
-# ─────────────────────────────────────────
-# LOAD ENV VARIABLES
-# ─────────────────────────────────────────
-load_dotenv()
-
-APP_ID         = os.getenv("GEELARK_APP_ID")
-API_KEY        = os.getenv("GEELARK_API_KEY")
-BEARER_TOKEN   = os.getenv("GEELARK_BEARER_TOKEN")
 
 from supabase_logger import get_all_devices as _get_all_devices
 _device_data       = _get_all_devices()
@@ -25,35 +14,8 @@ PROFILE_MOBILE_MAP = {v: k for k, v in _device_data.items()}
 BASE_URL = "https://openapi.geelark.com/open/v1"
 
 def get_headers(multipart=False):
-    """
-    Generates headers using Geelark Key Verification method.
-    Set multipart=True for file uploads (removes Content-Type).
-    """
-    # 1. traceId: Version 4 UUID (uppercase)
-    trace_id = str(uuid.uuid4()).upper()
-    
-    # 2. ts: Timestamp in milliseconds
-    ts = str(int(time.time() * 1000))
-    
-    # 3. nonce: First 6 characters of traceId
-    nonce = trace_id[:6]
-    
-    # 4. sign: SHA256(appId + traceId + ts + nonce + apiKey)
-    raw_str = f"{APP_ID}{trace_id}{ts}{nonce}{API_KEY}"
-    sign = hashlib.sha256(raw_str.encode('utf-8')).hexdigest().upper()
-    
-    headers = {
-        "appId": APP_ID,
-        "traceId": trace_id,
-        "ts": ts,
-        "nonce": nonce,
-        "sign": sign
-    }
-
-    if not multipart:
-        headers["Content-Type"] = "application/json"
-        
-    return headers
+    """Generates headers using Geelark Key Verification method."""
+    return build_geelark_headers(multipart=multipart)
 
 # ─────────────────────────────────────────
 # 1. TEST CONNECTION
