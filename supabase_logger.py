@@ -72,8 +72,19 @@ def seed_devices():
     client = get_client()
 
     json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deviceIDs.json")
-    with open(json_path, "r") as f:
-        device_data = json.load(f)
+    if not os.path.exists(json_path):
+        print("⚠️  deviceIDs.json not found — sync devices from the Dashboard first.")
+        return
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            device_data = json.load(f)
+    except json.JSONDecodeError:
+        print("⚠️  deviceIDs.json is empty or invalid — sync devices from the Dashboard first.")
+        return
+
+    if not device_data:
+        return
 
     # Fetch existing devices from table
     existing_res = client.table("devices").select("profile_id, username").execute()
@@ -270,3 +281,47 @@ def update_device_aggregate_stats(device_id: int, views: int, likes: int, commen
         "likes":    likes,
         "comments": comments,
     }).eq("id", device_id).execute()
+
+# ─────────────────────────────────────────
+# BOT SETTINGS — read from Dashboard Settings screen
+# ─────────────────────────────────────────
+def get_bot_settings() -> dict:
+    """Return the singleton bot_settings row (id=1)."""
+    client = get_client()
+    res = client.table("bot_settings").select("*").eq("id", 1).maybe_single().execute()
+    return res.data or {}
+
+
+# ─────────────────────────────────────────
+# SCHEDULED TASKS — polled by task_worker.py
+# ─────────────────────────────────────────
+def fetch_scheduled_tasks() -> list:
+    """Return all scheduled_posts rows."""
+    client = get_client()
+    res = client.table("scheduled_posts").select("*").order("created_at").execute()
+    return res.data or []
+
+
+def update_scheduled_task(
+    task_id: int,
+    status: str,
+    error: str | None = None,
+    posts_completed: int | None = None,
+):
+    client = get_client()
+    payload: dict = {"status": status}
+    if error is not None:
+        payload["error"] = error
+    if posts_completed is not None:
+        payload["posts_completed"] = posts_completed
+    client.table("scheduled_posts").update(payload).eq("id", task_id).execute()
+
+
+def reset_stuck_running_tasks() -> int:
+    """Reset tasks left in 'running' (e.g. after a crash) back to pending."""
+    client = get_client()
+    res = client.table("scheduled_posts").update({"status": "pending"}).eq("status", "running").execute()
+    count = len(res.data or [])
+    if count:
+        print(f"⚠️  Reset {count} stuck 'running' task(s) to pending.")
+    return count

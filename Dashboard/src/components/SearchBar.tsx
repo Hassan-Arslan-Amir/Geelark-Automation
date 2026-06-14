@@ -1,4 +1,5 @@
-import { Search, ChevronDown } from 'lucide-react';
+import { Search } from 'lucide-react';
+import { Select } from './Select';
 
 interface SearchBarProps {
   category: 'username' | 'profile_id' | 'mobile';
@@ -14,29 +15,20 @@ export function SearchBar({
   onQueryChange,
 }: SearchBarProps) {
   const categories = [
-    { value: 'username', label: 'Username' },
-    { value: 'profile_id', label: 'Profile ID' },
-    { value: 'mobile', label: 'Mobile' },
+    { value: 'username' as const, label: 'Username' },
+    { value: 'profile_id' as const, label: 'Profile ID' },
+    { value: 'mobile' as const, label: 'Mobile' },
   ];
 
   return (
     <div className="flex items-stretch">
-      <div className="relative">
-        <select
-          value={category}
-          onChange={(e) =>
-            onCategoryChange(e.target.value as 'username' | 'profile_id' | 'mobile')
-          }
-          className="h-full appearance-none pl-4 pr-9 border border-r-0 border-surface-200 rounded-l-xl bg-surface-0 text-surface-700 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 cursor-pointer hover:bg-surface-50 transition-colors"
-        >
-          {categories.map(({ value, label }) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" />
-      </div>
+      <Select
+        value={category}
+        options={categories}
+        onChange={onCategoryChange}
+        variant="attached-left"
+        aria-label="Search category"
+      />
 
       <div className="relative flex-1">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400" size={18} />

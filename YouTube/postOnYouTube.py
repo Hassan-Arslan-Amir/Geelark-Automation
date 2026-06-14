@@ -1,19 +1,13 @@
-import hashlib
-import uuid
 import requests
 import time
 import os
 import sys
 from datetime import datetime
-from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import api_post
+from geelark_config import build_geelark_headers
 
-load_dotenv()
-
-APP_ID   = os.getenv("GEELARK_APP_ID")
-API_KEY  = os.getenv("GEELARK_API_KEY")
 BASE_URL = "https://openapi.geelark.com/open/v1"
 
 from supabase_logger import get_all_devices as _get_all_devices
@@ -46,19 +40,7 @@ def get_schedule_after_hours(hours: int) -> int:
 # AUTH HEADERS
 # ─────────────────────────────────────────
 def get_headers() -> dict:
-    trace_id = str(uuid.uuid4()).upper()
-    ts       = str(int(time.time() * 1000))
-    nonce    = trace_id[:6]
-    raw_str  = f"{APP_ID}{trace_id}{ts}{nonce}{API_KEY}"
-    sign     = hashlib.sha256(raw_str.encode("utf-8")).hexdigest().upper()
-    return {
-        "appId":        APP_ID,
-        "traceId":      trace_id,
-        "ts":           ts,
-        "nonce":        nonce,
-        "sign":         sign,
-        "Content-Type": "application/json",
-    }
+    return build_geelark_headers()
 
 
 # ─────────────────────────────────────────
@@ -136,6 +118,7 @@ def post_shorts_on_devices(
     profile_ids:            dict = None,   # {mobile: profile_id} — None = all devices
     schedule_at:            int  = None,
     stagger_minutes:        int  = 0,
+    stagger_seconds:        int  = 0,
     same_style_url:         str  = None,
     same_style_voice:       int  = 0,
     original_voice:         int  = 100,
@@ -161,16 +144,18 @@ def post_shorts_on_devices(
     print(f"   Devices         : {len(device_list)}")
     print(f"   Video           : {video_url}")
     print(f"   Title           : {title[:60]}{'...' if len(title) > 60 else ''}")
-    print(f"   Stagger interval: {stagger_minutes} min(s) between devices")
+    stagger = stagger_seconds if stagger_seconds else stagger_minutes * 60
+    stagger_label = f"{stagger_seconds}s" if stagger_seconds else f"{stagger_minutes} min(s)"
+    print(f"   Stagger interval: {stagger_label} between devices")
     print(f"{'='*55}")
 
     results = []
 
     for i, (mobile, profile_id) in enumerate(device_list):
         if schedule_at:
-            device_schedule = schedule_at + (i * stagger_minutes * 60)
+            device_schedule = schedule_at + (i * stagger)
         else:
-            device_schedule = int(time.time()) + 60 + (i * stagger_minutes * 60)
+            device_schedule = int(time.time()) + 60 + (i * stagger)
         readable_time = datetime.fromtimestamp(device_schedule).strftime("%Y-%m-%d %H:%M:%S")
 
         print(f"\n[{i+1}/{len(device_list)}] Mobile: {mobile} | Profile: {profile_id}")

@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { DevicesScreen } from './components/DevicesScreen';
 import { PostsScreen } from './components/PostsScreen';
-import { Account } from './types';
+import { TasksScreen } from './components/TasksScreen';
+import { SchedulePostScreen } from './components/SchedulePostScreen';
+import { SettingsScreen } from './components/SettingsScreen';
+import { Account, ScreenId } from './types';
 import { useSupabaseData } from './hooks/useSupabaseData';
+import { usePersistedScreen } from './hooks/usePersistedScreen';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<'devices' | 'posts'>('devices');
+  const { currentScreen, setScreen, highlightTaskId } = usePersistedScreen();
   const [selectedDevice, setSelectedDevice] = useState<Account | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -16,16 +20,16 @@ function App() {
   const [postsSearchCategory, setPostsSearchCategory] = useState<'username' | 'profile_id' | 'mobile'>('username');
   const [postsSearchQuery, setPostsSearchQuery] = useState('');
 
-  const { data: analyticsData, loading, error } = useSupabaseData();
+  const { data: analyticsData, loading, error, refetch } = useSupabaseData();
 
   const handleDeviceClick = (account: Account) => {
     setSelectedDevice(account);
     setPostsSearchQuery(account.username);
     setPostsSearchCategory('username');
-    setCurrentScreen('posts');
+    setScreen('posts');
   };
 
-  const handleNavigate = (screen: 'devices' | 'posts') => {
+  const handleNavigate = (screen: ScreenId) => {
     if (screen === 'devices') {
       setSelectedDevice(null);
       setPostsSearchQuery('');
@@ -33,7 +37,11 @@ function App() {
       setPostsSearchQuery('');
       setPostsSearchCategory('username');
     }
-    setCurrentScreen(screen);
+    setScreen(screen);
+  };
+
+  const handleTaskCreated = (taskId: number) => {
+    setScreen('tasks', taskId);
   };
 
   if (loading) {
@@ -68,7 +76,7 @@ function App() {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      {currentScreen === 'devices' ? (
+      {currentScreen === 'devices' && (
         <DevicesScreen
           accounts={analyticsData.accounts}
           searchCategory={devicesSearchCategory}
@@ -76,8 +84,11 @@ function App() {
           onSearchCategoryChange={setDevicesSearchCategory}
           onSearchQueryChange={setDevicesSearchQuery}
           onDeviceClick={handleDeviceClick}
+          onRefreshDevices={() => refetch({ silent: true })}
         />
-      ) : (
+      )}
+
+      {currentScreen === 'posts' && (
         <PostsScreen
           accounts={analyticsData.accounts}
           searchCategory={postsSearchCategory}
@@ -87,9 +98,26 @@ function App() {
           onSearchQueryChange={setPostsSearchQuery}
         />
       )}
+
+      {currentScreen === 'tasks' && (
+        <TasksScreen
+          onAddTask={() => setScreen('schedule')}
+          highlightTaskId={highlightTaskId}
+        />
+      )}
+
+      {currentScreen === 'schedule' && (
+        <SchedulePostScreen
+          accounts={analyticsData.accounts}
+          onTaskCreated={handleTaskCreated}
+        />
+      )}
+
+      {currentScreen === 'settings' && (
+        <SettingsScreen />
+      )}
     </div>
   );
 }
 
 export default App;
-

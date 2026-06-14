@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { AnalyticsData, Account } from '../types';
 
@@ -18,96 +18,106 @@ export function useSupabaseData() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      // Guard: env vars not configured yet
-      if (!supabase) {
-        setError(
-          'Supabase credentials are missing.\n' +
-          'Create Dashboard/.env with:\n' +
-          '  VITE_SUPABASE_URL=https://your-project.supabase.co\n' +
-          '  VITE_SUPABASE_ANON_KEY=your-anon-public-key'
-        );
-        setLoading(false);
-        return;
-      }
+  const fetchData = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
 
-      try {
-        // ── 1. Fetch all devices that have a username ──────────────────────
-        const { data: devices, error: devicesError } = await supabase
-          .from('devices')
-          .select('id, mobile, profile_id, username')
-          .not('username', 'is', null);
-
-        if (devicesError) throw devicesError;
-
-        // ── 2. Fetch all post stats ────────────────────────────────────────
-        const { data: stats, error: statsError } = await supabase
-          .from('stats')
-          .select('device_id, permalink, media_type, views, likes, comments, reshares, reach, impressions, saves, posted_at');
-
-        if (statsError) throw statsError;
-
-        // ── 3. Group stats rows by device_id ──────────────────────────────
-        type StatRow = NonNullable<typeof stats>[number];
-        const statsByDevice: Record<number, StatRow[]> = {};
-        for (const stat of stats ?? []) {
-          if (!statsByDevice[stat.device_id]) statsByDevice[stat.device_id] = [];
-          statsByDevice[stat.device_id].push(stat);
-        }
-
-        // ── 4. Assemble Account[] (same shape the components already expect)
-        const accounts: Account[] = (devices ?? []).map((device) => ({
-          profile_id: device.profile_id,
-          mobile:     device.mobile,
-          username:   device.username,
-          posts: (statsByDevice[device.id] ?? []).map((stat) => ({
-            permalink: stat.permalink,
-            stats: {
-              views:       stat.views       ?? 0,
-              likes:       stat.likes       ?? 0,
-              comments:    stat.comments    ?? 0,
-              reshares:    stat.reshares    ?? 0,
-              media_type:  stat.media_type  ?? 0,
-              // posted_at is an ISO string in DB; components expect a Unix timestamp
-              timestamp:   stat.posted_at
-                ? Math.floor(new Date(stat.posted_at).getTime() / 1000)
-                : 0,
-              reach:       stat.reach       ?? 0,
-              impressions: stat.impressions ?? 0,
-              saves:       stat.saves       ?? 0,
-            },
-          })),
-        }));
-
-        console.log(`[useSupabaseData] loaded ${accounts.length} devices, ${stats?.length ?? 0} stat rows`);
-
-        // ── 5. Compute top-level aggregates ───────────────────────────────
-        const totalViews    = accounts.reduce((s, a) => s + a.posts.reduce((ps, p) => ps + p.stats.views,    0), 0);
-        const totalLikes    = accounts.reduce((s, a) => s + a.posts.reduce((ps, p) => ps + p.stats.likes,    0), 0);
-        const totalComments = accounts.reduce((s, a) => s + a.posts.reduce((ps, p) => ps + p.stats.comments, 0), 0);
-
-        setData({
-          fetched_at:    new Date().toISOString(),
-          total_devices: accounts.length,
-          aggregate: {
-            total_views:    totalViews,
-            total_likes:    totalLikes,
-            total_comments: totalComments,
-          },
-          accounts,
-        });
-      } catch (err: unknown) {
-        const message = extractMessage(err);
-        console.error('[useSupabaseData] fetch failed:', err);
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
+    if (!silent) {
+      setLoading(true);
+      setError(null);
     }
 
-    fetchData();
+    // Guard: env vars not configured yet
+    if (!supabase) {
+      setError(
+        'Supabase credentials are missing.\n' +
+        'Create Dashboard/.env with:\n' +
+        '  VITE_SUPABASE_URL=https://your-project.supabase.co\n' +
+        '  VITE_SUPABASE_ANON_KEY=your-anon-public-key'
+      );
+      if (!silent) setLoading(false);
+      return;
+    }
+
+    try {
+      // ── 1 & 2. Fetch devices and stats in parallel ─────────────────────
+      const [devicesResult, statsResult] = await Promise.all([
+        supabase
+          .from('devices')
+          .select('id, mobile, profile_id, username')
+          .not('username', 'is', null),
+        supabase
+          .from('stats')
+          .select('device_id, permalink, media_type, views, likes, comments, reshares, reach, impressions, saves, posted_at'),
+      ]);
+
+      if (devicesResult.error) throw devicesResult.error;
+      if (statsResult.error) throw statsResult.error;
+
+      const devices = devicesResult.data;
+      const stats = statsResult.data;
+
+      // ── 3. Group stats rows by device_id ──────────────────────────────
+      type StatRow = NonNullable<typeof stats>[number];
+      const statsByDevice: Record<number, StatRow[]> = {};
+      for (const stat of stats ?? []) {
+        if (!statsByDevice[stat.device_id]) statsByDevice[stat.device_id] = [];
+        statsByDevice[stat.device_id].push(stat);
+      }
+
+      // ── 4. Assemble Account[] (same shape the components already expect)
+      const accounts: Account[] = (devices ?? []).map((device) => ({
+        profile_id: device.profile_id,
+        mobile:     device.mobile,
+        username:   device.username,
+        posts: (statsByDevice[device.id] ?? []).map((stat) => ({
+          permalink: stat.permalink,
+          stats: {
+            views:       stat.views       ?? 0,
+            likes:       stat.likes       ?? 0,
+            comments:    stat.comments    ?? 0,
+            reshares:    stat.reshares    ?? 0,
+            media_type:  stat.media_type  ?? 0,
+            // posted_at is an ISO string in DB; components expect a Unix timestamp
+            timestamp:   stat.posted_at
+              ? Math.floor(new Date(stat.posted_at).getTime() / 1000)
+              : 0,
+            reach:       stat.reach       ?? 0,
+            impressions: stat.impressions ?? 0,
+            saves:       stat.saves       ?? 0,
+          },
+        })),
+      }));
+
+      console.log(`[useSupabaseData] loaded ${accounts.length} devices, ${stats?.length ?? 0} stat rows`);
+
+      // ── 5. Compute top-level aggregates ───────────────────────────────
+      const totalViews    = accounts.reduce((s, a) => s + a.posts.reduce((ps, p) => ps + p.stats.views,    0), 0);
+      const totalLikes    = accounts.reduce((s, a) => s + a.posts.reduce((ps, p) => ps + p.stats.likes,    0), 0);
+      const totalComments = accounts.reduce((s, a) => s + a.posts.reduce((ps, p) => ps + p.stats.comments, 0), 0);
+
+      setData({
+        fetched_at:    new Date().toISOString(),
+        total_devices: accounts.length,
+        aggregate: {
+          total_views:    totalViews,
+          total_likes:    totalLikes,
+          total_comments: totalComments,
+        },
+        accounts,
+      });
+      if (!silent) setError(null);
+    } catch (err: unknown) {
+      const message = extractMessage(err);
+      console.error('[useSupabaseData] fetch failed:', err);
+      setError(message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
 
-  return { data, loading, error };
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, refetch: fetchData };
 }

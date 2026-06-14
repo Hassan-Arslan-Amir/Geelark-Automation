@@ -9,6 +9,9 @@ python-dotenv==1.2.2
 # HTTP
 requests==2.33.1
 httpx==0.28.1
+# Dashboard API
+flask==3.1.2
+flask-cors==6.0.1
 # Google Drive
 google-api-python-client==2.196.0
 google-auth-httplib2==0.4.0
